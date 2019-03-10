@@ -4,7 +4,6 @@
 #Region " Variable Declarations - All the variables used in this form and this application." '=================================================================================================
 
     'Declare forms opened from this form:
-    'Public WithEvents DesignQuery As frmDesignQuery
 
     'Variables used to connect to a database and open a table:
     Dim connString As String
@@ -36,19 +35,6 @@
         End Set
     End Property
 
-    'NOTE: NO NEED TO STORE TABLE NAME - SOME QUERIES MAY REFER TO MULTIPLE TABLES IN THE DATABASE.
-
-    'Private _tableName As String = "" 'TableName stores the name of the Table selected for viewing.
-    'Public Property TableName As String
-    '    Get
-    '        Return _tableName
-    '    End Get
-    '    Set(value As String)
-    '        _tableName = value
-    '        cmbSelectTable.SelectedIndex = cmbSelectTable.FindStringExact(_tableName) 'Select the table in the list.
-    '    End Set
-    'End Property
-
     Private _query As String = "" 'The Query property stores the text of the SQL query used to display table values in DataGridView1
     'Public Property Query() As String
     Public Property Query As String
@@ -61,11 +47,31 @@
         End Set
     End Property
 
+    Private _dataSummary As String = ""
+    Public Property DataSummary As String
+        Get
+            Return _dataSummary
+        End Get
+        Set(value As String)
+            _dataSummary = value
+            txtSharePriceDataDescr.Text = _dataSummary
+        End Set
+    End Property
+
+    Private _version As String = ""
+    Public Property Version As String
+        Get
+            Return _version
+        End Get
+        Set(ByVal value As String)
+            _version = value
+            txtDataVersion.Text = _version
+        End Set
+    End Property
 
 #End Region 'Properties -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #Region " Process XML files - Read and write XML files." '=====================================================================================================================================
-
 
     Private Sub SaveFormSettings()
         'This SaveFormSettings method saves the settings in Main.SharePricesSettingsList
@@ -80,7 +86,6 @@
             Main.SharePricesSettings.List(FormNo).Height = Me.Height
             Main.SharePricesSettings.List(FormNo).Query = Query
             Main.SharePricesSettings.List(FormNo).Description = txtSharePriceDataDescr.Text
-            'Main.SharePricesSettings.List(FormNo).VersionNo 'This is only changed when a different version is selected.
             Main.SharePricesSettings.List(FormNo).VersionName = txtVersionName.Text
             Main.SharePricesSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
             Main.SharePricesSettings.List(FormNo).AutoApplyQuery = chkAutoApply.Checked.ToString
@@ -259,7 +264,8 @@
         ApplyQuery()
     End Sub
 
-    Private Sub ApplyQuery()
+    'Private Sub ApplyQuery()
+    Public Sub ApplyQuery()
         'Apply the Query
 
         If Main.SharePriceDbPath = "" Then
@@ -369,8 +375,6 @@
     Private Sub btnSaveChanges_Click(sender As Object, e As EventArgs) Handles btnSaveChanges.Click
         'Save the changes made to the data in DataGridView1 to the corresponding table in the database:
 
-        'If MessageBox.Show("Do you want to apply the changes to the table in the database?") = DialogResult.OK Then
-        'If MessageBox.Show("Do you want to apply the changes to the table in the database?", "Confirm Changes", MessageBoxButtons.YesNoCancel) = DialogResult.OK Then
         If MessageBox.Show("Do you want to apply the changes to the table in the database?", "Confirm Changes", MessageBoxButtons.YesNoCancel) = DialogResult.Yes Then
             'Apply the edits.
         Else
@@ -462,7 +466,6 @@
         Main.SharePricesSettings.List(FormNo).Height = Me.Height
         Main.SharePricesSettings.List(FormNo).Query = Query
         Main.SharePricesSettings.List(FormNo).Description = txtSharePriceDataDescr.Text
-        'Main.SharePricesSettings.List(FormNo).VersionNo 'This is only changed when a different version is selected.
         Main.SharePricesSettings.List(FormNo).VersionName = txtVersionName.Text
         Main.SharePricesSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
         Main.SharePricesSettings.List(FormNo).AutoApplyQuery = chkAutoApply.Checked.ToString
@@ -480,7 +483,6 @@
             NewVersion.AutoApplyQuery = Main.SharePricesSettings.List(FormNo).AutoApplyQuery
             NewVersion.Query = Main.SharePricesSettings.List(FormNo).Query
             NewVersion.VersionName = Main.SharePricesSettings.List(FormNo).VersionName
-            'NewVersion.AutoApplyQuery = Main.SharePricesSettings.List(FormNo).VersionDesc
             NewVersion.VersionDesc = Main.SharePricesSettings.List(FormNo).VersionDesc
             For I = 1 To Main.SharePricesSettings.List(FormNo).TableCols.Count
                 NewVersion.TableCols.Add(Main.SharePricesSettings.List(FormNo).TableCols(I - 1))
@@ -495,7 +497,6 @@
             NewVersion.AutoApplyQuery = Main.SharePricesSettings.List(FormNo).AutoApplyQuery
             NewVersion.Query = Main.SharePricesSettings.List(FormNo).Query
             NewVersion.VersionName = Main.SharePricesSettings.List(FormNo).VersionName
-            'NewVersion.AutoApplyQuery = Main.SharePricesSettings.List(FormNo).VersionDesc
             NewVersion.VersionDesc = Main.SharePricesSettings.List(FormNo).VersionDesc
             For I = 1 To Main.SharePricesSettings.List(FormNo).TableCols.Count
                 NewVersion.TableCols.Add(Main.SharePricesSettings.List(FormNo).TableCols(I - 1))
@@ -548,7 +549,6 @@
         Main.SharePricesSettings.List(FormNo).Height = Me.Height
         Main.SharePricesSettings.List(FormNo).Query = Query
         Main.SharePricesSettings.List(FormNo).Description = txtSharePriceDataDescr.Text
-        'Main.SharePricesSettings.List(FormNo).VersionNo 'This is only changed when a different version is selected.
         Main.SharePricesSettings.List(FormNo).VersionName = txtVersionName.Text
         Main.SharePricesSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
         Main.SharePricesSettings.List(FormNo).AutoApplyQuery = chkAutoApply.Checked.ToString
@@ -614,7 +614,6 @@
         Next
 
         txtDataVersion.Text = Main.SharePricesSettings.List(FormNo).VersionName
-        'txtQuery.Text is updated when Query is changed
         txtVersionName.Text = Main.SharePricesSettings.List(FormNo).VersionName
         txtVersionDesc.Text = Main.SharePricesSettings.List(FormNo).VersionDesc
         chkAutoApply.Checked = Main.SharePricesSettings.List(FormNo).AutoApplyQuery
@@ -761,8 +760,6 @@
         Main.SharePriceSettingsChanged = True
     End Sub
 
-
 #End Region 'Form Methods ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
 
 End Class

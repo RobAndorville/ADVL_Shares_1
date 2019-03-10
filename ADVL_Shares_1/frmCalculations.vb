@@ -45,6 +45,28 @@
         End Set
     End Property
 
+    Private _dataSummary As String = ""
+    Public Property DataSummary As String
+        Get
+            Return _dataSummary
+        End Get
+        Set(value As String)
+            _dataSummary = value
+            txtDataDescr.Text = _dataSummary
+        End Set
+    End Property
+
+    Private _version As String = ""
+    Public Property Version As String
+        Get
+            Return _version
+        End Get
+        Set(ByVal value As String)
+            _version = value
+            txtDataVersion.Text = _version
+        End Set
+    End Property
+
 #End Region 'Properties -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #Region " Process XML files - Read and write XML files." '=====================================================================================================================================
@@ -161,8 +183,6 @@
         Main.CalculationsSettingsChanged = True
     End Sub
 
-
-
     Private Sub DesignCalculationsQuery_FormClosed(sender As Object, e As FormClosedEventArgs) Handles DesignCalculationsQuery.FormClosed
         DesignCalculationsQuery = Nothing
     End Sub
@@ -174,7 +194,6 @@
     Public Sub FillCmbSelectTable()
         'Fill the cmbSelectTable listbox with the available tables in the selected database.
 
-        'If Main.SharePriceDbPath = "" Then
         If Main.CalculationsDbPath = "" Then
             Main.Message.AddWarning("No database selected!" & vbCrLf)
             Exit Sub
@@ -324,7 +343,6 @@
         Main.CalculationsSettingsChanged = True
 
         'Display the data in DataGridView1
-        'If cmbSelectTable.Focused Then
         connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & Main.CalculationsDbPath 'DatabasePath
             myConnection.ConnectionString = connString
             myConnection.Open()
@@ -349,8 +367,7 @@
 
             DataGridView1.Update()
             DataGridView1.Refresh()
-            myConnection.Close()
-        'End If
+        myConnection.Close()
 
         'Save as a new version
 
@@ -361,7 +378,6 @@
         Main.CalculationsSettings.List(FormNo).Height = Me.Height
         Main.CalculationsSettings.List(FormNo).Query = Query
         Main.CalculationsSettings.List(FormNo).Description = txtDataDescr.Text
-        'Main.CalculationsSettings.List(FormNo).VersionNo 'This is only changed when a different version is selected.
 
         If Trim(txtVersionName.Text) = "" Then
             txtVersionName.Text = "Version 1"
@@ -396,7 +412,6 @@
     Private Sub btnSaveChanges_Click(sender As Object, e As EventArgs) Handles btnSaveChanges.Click
         'Save the changes made to the data in DataGridView1 to the corresponding table in the database:
 
-        'If MessageBox.Show("Do you want to apply the changes to the table in the database?", "Confirm Changes", MessageBoxButtons.YesNoCancel) = DialogResult.OK Then
         If MessageBox.Show("Do you want to apply the changes to the table in the database?", "Confirm Changes", MessageBoxButtons.YesNoCancel) = DialogResult.Yes Then
                 'Apply the edits.
             Else
@@ -508,7 +523,6 @@
             NewVersion.AutoApplyQuery = Main.CalculationsSettings.List(FormNo).AutoApplyQuery
             NewVersion.Query = Main.CalculationsSettings.List(FormNo).Query
             NewVersion.VersionName = Main.CalculationsSettings.List(FormNo).VersionName
-            'NewVersion.AutoApplyQuery = Main.CalculationsSettings.List(FormNo).VersionDesc
             NewVersion.VersionDesc = Main.CalculationsSettings.List(FormNo).VersionDesc
             For I = 1 To Main.CalculationsSettings.List(FormNo).TableCols.Count
                 NewVersion.TableCols.Add(Main.CalculationsSettings.List(FormNo).TableCols(I - 1))
@@ -523,7 +537,6 @@
             NewVersion.AutoApplyQuery = Main.CalculationsSettings.List(FormNo).AutoApplyQuery
             NewVersion.Query = Main.CalculationsSettings.List(FormNo).Query
             NewVersion.VersionName = Main.CalculationsSettings.List(FormNo).VersionName
-            'NewVersion.AutoApplyQuery = Main.CalculationsSettings.List(FormNo).VersionDesc
             NewVersion.VersionDesc = Main.CalculationsSettings.List(FormNo).VersionDesc
             For I = 1 To Main.CalculationsSettings.List(FormNo).TableCols.Count
                 NewVersion.TableCols.Add(Main.CalculationsSettings.List(FormNo).TableCols(I - 1))
@@ -576,7 +589,6 @@
         Main.CalculationsSettings.List(FormNo).Height = Me.Height
         Main.CalculationsSettings.List(FormNo).Query = Query
         Main.CalculationsSettings.List(FormNo).Description = txtDataDescr.Text
-        'Main.CalculationsSettings.List(FormNo).VersionNo 'This is only changed when a different version is selected.
         Main.CalculationsSettings.List(FormNo).VersionName = txtVersionName.Text
         Main.CalculationsSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
         Main.CalculationsSettings.List(FormNo).AutoApplyQuery = chkAutoApply.Checked.ToString
@@ -621,8 +633,6 @@
             txtSelVersionDesc.Text = Main.CalculationsSettings.List(FormNo).Versions(SelRow).VersionDesc
         End If
 
-
-
     End Sub
 
     Private Sub btnSelect_Click(sender As Object, e As EventArgs) Handles btnSelect.Click
@@ -646,7 +656,6 @@
         Next
 
         txtDataVersion.Text = Main.CalculationsSettings.List(FormNo).VersionName
-        'txtQuery.Text is updated when Query is changed
         txtVersionName.Text = Main.CalculationsSettings.List(FormNo).VersionName
         txtVersionDesc.Text = Main.CalculationsSettings.List(FormNo).VersionDesc
         chkAutoApply.Checked = Main.CalculationsSettings.List(FormNo).AutoApplyQuery
@@ -786,22 +795,6 @@
     Private Sub txtXmlFileName_TextChanged(sender As Object, e As EventArgs) Handles txtXmlFileName.TextChanged
         Main.CalculationsSettingsChanged = True
     End Sub
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #End Region 'Form Methods ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 

@@ -33,7 +33,6 @@
     End Property
 
     Private _query As String = "" 'The Query property stores the text of the SQL query used to display table values in DataGridView1
-    'Public Property Query() As String
     Public Property Query As String
         Get
             Return _query
@@ -65,7 +64,6 @@
 
         'Add code to include other settings to save after the comment line <!---->
 
-        'Dim SettingsFileName As String = "FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & ".xml"
         'Multiple form version of the SettingsFileName:
         Dim SettingsFileName As String = "FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & "_" & FormNo & ".xml"
         Main.Project.SaveXmlSettings(SettingsFileName, settingsData)
@@ -74,7 +72,6 @@
     Private Sub RestoreFormSettings()
         'Read the form settings from an XML document.
 
-        'Dim SettingsFileName As String = "FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & ".xml"
         'Multiple form version of the SettingsFileName:
         Dim SettingsFileName As String = "FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & "_" & FormNo & ".xml"
 
@@ -137,14 +134,6 @@
         End If
     End Sub
 
-    'Private Sub frmSharePrices_FormClosed(sender As Object, e As FormClosedEventArgs) Handles Me.FormClosed
-    '    Main.FinancialsFormClosed()
-    'End Sub
-
-    'Private Sub frmViewTable_FormClosed(sender As Object, e As FormClosedEventArgs) Handles Me.FormClosed
-    '    Main.ViewTableFormClosed()
-    'End Sub
-
     Public Sub CloseForm()
         'Used to close the form remotely.
         Main.ClosedFormNo = FormNo 'The Main form property ClosedFormNo is set to this form number. This is used in the SharePricesFormClosed method to select the correct form to set to nothing.
@@ -155,52 +144,9 @@
 
 #Region " Form Methods - The main actions performed by this form." '---------------------------------------------------------------------------------------------------------------------------
 
-    'Private Sub cmbSelectTable_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbSelectTable.SelectedIndexChanged
-    '    'Update DataGridView1:
-
-    '    If IsNothing(cmbSelectTable.SelectedItem) Then
-    '        Exit Sub
-    '    End If
-
-    '    TableName = cmbSelectTable.SelectedItem.ToString
-    '    'Query = "Select Top 500 * From " & TableName
-    '    _query = "Select Top 500 * From " & TableName 'This sets the value of  the Query property without running the associated method.
-    '    txtQuery.Text = Query
-
-    '    If cmbSelectTable.Focused Then
-    '        connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & Main.SharePriceDbPath 'DatabasePath
-    '        myConnection.ConnectionString = connString
-    '        myConnection.Open()
-
-    '        da = New OleDb.OleDbDataAdapter(Query, myConnection)
-
-    '        da.MissingSchemaAction = MissingSchemaAction.AddWithKey 'This statement is required to obtain the correct result from the statement: ds.Tables(0).Columns(0).MaxLength (This fixes a Microsoft bug: http://support.microsoft.com/kb/317175 )
-
-    '        ds.Clear()
-    '        ds.Reset()
-
-    '        da.FillSchema(ds, SchemaType.Source, TableName)
-
-    '        da.Fill(ds, TableName)
-
-    '        DataGridView1.AutoGenerateColumns = True
-
-    '        DataGridView1.EditMode = DataGridViewEditMode.EditOnKeystroke
-
-    '        DataGridView1.DataSource = ds.Tables(0)
-    '        DataGridView1.AutoResizeColumns()
-
-    '        DataGridView1.Update()
-    '        DataGridView1.Refresh()
-    '        myConnection.Close()
-    '    End If
-
-    'End Sub
-
     Public Sub FillCmbSelectTable()
         'Fill the cmbSelectTable listbox with the available tables in the selected database.
 
-        'If DatabasePath = "" Then
         If Main.FinancialsDbPath = "" Then
             Main.Message.AddWarning("No database selected!" & vbCrLf)
             Exit Sub
@@ -267,9 +213,6 @@
     End Sub
 
     Private Sub ApplyQuery()
-        'If IsNothing(cmbSelectTable.SelectedItem) Then
-        '    Exit Sub
-        'End If
 
         If Main.FinancialsDbPath = "" Then
             Main.Message.AddWarning("A Financials database has not been selected!" & vbCrLf)
@@ -280,18 +223,14 @@
         myConnection.ConnectionString = connString
         myConnection.Open()
 
-        'da = New OleDb.OleDbDataAdapter(txtQuery.Text, myConnection)
         da = New OleDb.OleDbDataAdapter(Query, myConnection)
 
         da.MissingSchemaAction = MissingSchemaAction.AddWithKey
 
         ds.Clear()
         ds.Reset()
+
         Try
-
-            'da.FillSchema(ds, SchemaType.Source, "myData")
-
-            'da.Fill(ds, TableName)
             da.Fill(ds, "myData")
 
             DataGridView1.AutoGenerateColumns = True
@@ -311,11 +250,6 @@
         myConnection.Close()
     End Sub
 
-    'Private Sub txtDataDescr_LostFocus(sender As Object, e As EventArgs) Handles txtDataDescr.LostFocus
-    '    'Update the description of the data shown on this Comapny Financials form:
-    '    'Main.FinancialsData(FormNo, txtDataDescr.Text)
-    '    Main.UpdateFinancialsDataDescr(FormNo, txtFinancialDataDescr.Text)
-    'End Sub
 
     Private Sub btnDisplay_Click(sender As Object, e As EventArgs) Handles btnDisplay.Click
         'Update DataGridView1:
@@ -325,7 +259,6 @@
         End If
 
         Dim TableName As String = cmbSelectTable.SelectedItem.ToString
-        'Query = "Select Top 500 * From " & TableName
         _query = "Select Top 500 * From " & TableName 'This sets the value of  the Query property without running the associated method.
         txtQuery.Text = Query
 
@@ -374,8 +307,5 @@
     End Sub
 
 #End Region 'Form Methods ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
-
 
 End Class

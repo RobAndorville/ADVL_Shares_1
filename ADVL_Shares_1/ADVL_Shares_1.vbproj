@@ -24,7 +24,7 @@
     <UpdatePeriodically>false</UpdatePeriodically>
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
-    <ApplicationRevision>4</ApplicationRevision>
+    <ApplicationRevision>13</ApplicationRevision>
     <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
@@ -63,10 +63,11 @@
     <OptionInfer>On</OptionInfer>
   </PropertyGroup>
   <PropertyGroup>
-    <ManifestCertificateThumbprint>6416ED873E124372CD4DD7C702A29CB387810C92</ManifestCertificateThumbprint>
+    <ManifestCertificateThumbprint>4C8C6E41FCE8336E5FCEF2A6E92A73D4A6A4E31F</ManifestCertificateThumbprint>
   </PropertyGroup>
   <PropertyGroup>
-    <ManifestKeyFile>ADVL_Shares_1_TemporaryKey.pfx</ManifestKeyFile>
+    <ManifestKeyFile>
+    </ManifestKeyFile>
   </PropertyGroup>
   <PropertyGroup>
     <GenerateManifests>true</GenerateManifests>
@@ -78,9 +79,6 @@
     <ApplicationIcon>ADVL_Shares_Icon1.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="ADVL_Utilities_Library_1">
-      <HintPath>..\..\ADVL_Utilities_Library_1\ADVL_Utilities_Library_1\bin\Debug\ADVL_Utilities_Library_1.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
@@ -117,6 +115,12 @@
     <Compile Include="frmCalculations.vb">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="frmCompanyList.Designer.vb">
+      <DependentUpon>frmCompanyList.vb</DependentUpon>
+    </Compile>
+    <Compile Include="frmCompanyList.vb">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="frmDesignQuery.Designer.vb">
       <DependentUpon>frmDesignQuery.vb</DependentUpon>
     </Compile>
@@ -127,6 +131,12 @@
       <DependentUpon>frmFinancials.vb</DependentUpon>
     </Compile>
     <Compile Include="frmFinancials.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmHtmlDisplay.Designer.vb">
+      <DependentUpon>frmHtmlDisplay.vb</DependentUpon>
+    </Compile>
+    <Compile Include="frmHtmlDisplay.vb">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="frmSeqStatements.Designer.vb">
@@ -151,6 +161,18 @@
       <DependentUpon>frmViewTable.vb</DependentUpon>
     </Compile>
     <Compile Include="frmViewTable.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmWebPage.Designer.vb">
+      <DependentUpon>frmWebPage.vb</DependentUpon>
+    </Compile>
+    <Compile Include="frmWebPage.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmWebPageList.Designer.vb">
+      <DependentUpon>frmWebPageList.vb</DependentUpon>
+    </Compile>
+    <Compile Include="frmWebPageList.vb">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Main.vb">
@@ -186,11 +208,17 @@
     <EmbeddedResource Include="frmCalculations.resx">
       <DependentUpon>frmCalculations.vb</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="frmCompanyList.resx">
+      <DependentUpon>frmCompanyList.vb</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="frmDesignQuery.resx">
       <DependentUpon>frmDesignQuery.vb</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="frmFinancials.resx">
       <DependentUpon>frmFinancials.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="frmHtmlDisplay.resx">
+      <DependentUpon>frmHtmlDisplay.vb</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="frmSeqStatements.resx">
       <DependentUpon>frmSeqStatements.vb</DependentUpon>
@@ -203,6 +231,12 @@
     </EmbeddedResource>
     <EmbeddedResource Include="frmViewTable.resx">
       <DependentUpon>frmViewTable.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="frmWebPage.resx">
+      <DependentUpon>frmWebPage.vb</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="frmWebPageList.resx">
+      <DependentUpon>frmWebPageList.vb</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Main.resx">
       <DependentUpon>Main.vb</DependentUpon>
@@ -275,6 +309,12 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="ADVL_Shares_Icon1.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\ADVL_Utilities_Library_1\ADVL_Utilities_Library_1\ADVL_Utilities_Library_1.vbproj">
+      <Project>{8f783c66-3ec9-42a3-b24e-c39c800e3c2e}</Project>
+      <Name>ADVL_Utilities_Library_1</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

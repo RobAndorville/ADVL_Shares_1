@@ -33,7 +33,6 @@
     End Property
 
     Private _query As String = "" 'The Query property stores the text of the SQL query used to display table values in DataGridView1
-    'Public Property Query() As String
     Public Property Query As String
         Get
             Return _query
@@ -41,6 +40,28 @@
         Set(ByVal value As String)
             _query = value
             txtQuery.Text = _query
+        End Set
+    End Property
+
+    Private _dataSummary As String = ""
+    Public Property DataSummary As String
+        Get
+            Return _dataSummary
+        End Get
+        Set(value As String)
+            _dataSummary = value
+            txtFinancialDataDescr.Text = _dataSummary
+        End Set
+    End Property
+
+    Private _version As String = ""
+    Public Property Version As String
+        Get
+            Return _version
+        End Get
+        Set(ByVal value As String)
+            _version = value
+            txtDataVersion.Text = _version
         End Set
     End Property
 
@@ -52,7 +73,6 @@
     Private Sub SaveFormSettings()
         'This SaveFormSettings method saves the settings in Main.FinancialsSettingsList
 
-        'If FormNo + 1 > Main.FinancialsSettingsList.Count Then
         If FormNo + 1 > Main.FinancialsSettings.List.Count Then
             Main.Message.AddWarning("Form number: " & FormNo & " does not exist in the Financials Settings List!" & vbCrLf)
         Else
@@ -80,7 +100,6 @@
             'Main.Message.AddWarning("Form number: " & FormNo & " does not exist in the Financials Settings List!" & vbCrLf)
             'Add form entry to the Financial Settings list.
             Dim NewSettings As New DataViewSettings
-            'Main.FinancialsSettings.UpdateSettings(FormNo, NewSettings)
             Main.FinancialsSettings.InsertSettings(FormNo, NewSettings)
 
         Else
@@ -130,7 +149,6 @@
         Me.Close() 'Close the form
     End Sub
 
-    'Private Sub frmTemplate_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
     Private Sub Form_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
         If WindowState = FormWindowState.Normal Then
             SaveFormSettings()
@@ -165,7 +183,6 @@
         End If
         Main.FinancialsSettingsChanged = True
     End Sub
-
 
     Private Sub DesignFinQuery_FormClosed(sender As Object, e As FormClosedEventArgs) Handles DesignFinQuery.FormClosed
         DesignFinQuery = Nothing
@@ -354,8 +371,6 @@
     Private Sub btnSaveChanges_Click(sender As Object, e As EventArgs) Handles btnSaveChanges.Click
         'Save the changes made to the data in DataGridView1 to the corresponding table in the database:
 
-        'If MessageBox.Show("Do you want to apply the changes to the table in the database?") = DialogResult.OK Then
-        'If MessageBox.Show("Do you want to apply the changes to the table in the database?", "Confirm Changes", MessageBoxButtons.YesNoCancel) = DialogResult.OK Then
         If MessageBox.Show("Do you want to apply the changes to the table in the database?", "Confirm Changes", MessageBoxButtons.YesNoCancel) = DialogResult.Yes Then
                 'Apply the edits.
             Else
@@ -447,7 +462,6 @@
         Main.FinancialsSettings.List(FormNo).Height = Me.Height
         Main.FinancialsSettings.List(FormNo).Query = Query
         Main.FinancialsSettings.List(FormNo).Description = txtFinancialDataDescr.Text
-        'Main.FinancialsSettingss.List(FormNo).VersionNo 'This is only changed when a different version is selected.
         Main.FinancialsSettings.List(FormNo).VersionName = txtVersionName.Text
         Main.FinancialsSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
         Main.FinancialsSettings.List(FormNo).AutoApplyQuery = chkAutoApply.Checked.ToString
@@ -465,7 +479,6 @@
             NewVersion.AutoApplyQuery = Main.FinancialsSettings.List(FormNo).AutoApplyQuery
             NewVersion.Query = Main.FinancialsSettings.List(FormNo).Query
             NewVersion.VersionName = Main.FinancialsSettings.List(FormNo).VersionName
-            'NewVersion.AutoApplyQuery = Main.FinancialsSettings.List(FormNo).VersionDesc
             NewVersion.VersionDesc = Main.FinancialsSettings.List(FormNo).VersionDesc
             For I = 1 To Main.FinancialsSettings.List(FormNo).TableCols.Count
                 NewVersion.TableCols.Add(Main.FinancialsSettings.List(FormNo).TableCols(I - 1))
@@ -480,7 +493,6 @@
             NewVersion.AutoApplyQuery = Main.FinancialsSettings.List(FormNo).AutoApplyQuery
             NewVersion.Query = Main.FinancialsSettings.List(FormNo).Query
             NewVersion.VersionName = Main.FinancialsSettings.List(FormNo).VersionName
-            'NewVersion.AutoApplyQuery = Main.FinancialsSettings.List(FormNo).VersionDesc
             NewVersion.VersionDesc = Main.FinancialsSettings.List(FormNo).VersionDesc
             For I = 1 To Main.FinancialsSettings.List(FormNo).TableCols.Count
                 NewVersion.TableCols.Add(Main.FinancialsSettings.List(FormNo).TableCols(I - 1))
@@ -532,7 +544,6 @@
         Main.FinancialsSettings.List(FormNo).Height = Me.Height
         Main.FinancialsSettings.List(FormNo).Query = Query
         Main.FinancialsSettings.List(FormNo).Description = txtFinancialDataDescr.Text
-        'Main.FinancialsSettings.List(FormNo).VersionNo 'This is only changed when a different version is selected.
         Main.FinancialsSettings.List(FormNo).VersionName = txtVersionName.Text
         Main.FinancialsSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
         Main.FinancialsSettings.List(FormNo).AutoApplyQuery = chkAutoApply.Checked.ToString
@@ -742,11 +753,6 @@
         Main.FinancialsSettingsChanged = True
     End Sub
 
-
-
-
-
 #End Region 'Form Methods ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
 
 End Class

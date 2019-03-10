@@ -16,6 +16,9 @@
 '
 '----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+Imports System.Security.Permissions
+<PermissionSet(SecurityAction.Demand, Name:="FullTrust")>
+<System.Runtime.InteropServices.ComVisibleAttribute(True)>
 Public Class Main
     'The ADVL_Shares_1 application stores historical data for publicly traded shares and performs processing and analysis techniques aimed at optimizing share trading returns.
 
@@ -62,6 +65,19 @@ Public Class Main
     '    End Sub
     'End Class
     '------------------------------------------------------------------------------------------------------------------------------
+    '
+    'Calling JavaScript from VB.NET:
+    'The following Imports statement and permissions are required for the Main form:
+    'Imports System.Security.Permissions
+    '<PermissionSet(SecurityAction.Demand, Name:="FullTrust")> _
+    '<System.Runtime.InteropServices.ComVisibleAttribute(True)> _
+    'NOTE: the line continuation characters (_) will disappear form the code view after they have been typed!
+    '------------------------------------------------------------------------------------------------------------------------------
+    'Calling VB.NET from JavaScript
+    'Add the following line to the Main.Load method:
+    '  Me.WebBrowser1.ObjectForScripting = Me
+    '------------------------------------------------------------------------------------------------------------------------------
+
 
 #End Region 'Coding Notes ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -73,17 +89,39 @@ Public Class Main
     Public WithEvents Message As New ADVL_Utilities_Library_1.Message 'This object is used to display messages in the Messages window.
     Public WithEvents ApplicationUsage As New ADVL_Utilities_Library_1.Usage 'This object stores application usage information.
 
+    'Declare Forms used by the application:
+    Public WithEvents WebPageList As frmWebPageList
+
+    Public WithEvents NewHtmlDisplay As frmHtmlDisplay
+    Public HtmlDisplayFormList As New ArrayList 'Used for displaying multiple HtmlDisplay forms.
+
+    Public WithEvents NewWebPage As frmWebPage
+    Public WebPageFormList As New ArrayList 'Used for displaying multiple WebView forms.
+
     'Declare objects used to connect to the Application Network:
     Public client As ServiceReference1.MsgServiceClient
     Public WithEvents XMsg As New ADVL_Utilities_Library_1.XMessage
     Dim XDoc As New System.Xml.XmlDocument
     Public Status As New System.Collections.Specialized.StringCollection
     Dim ClientAppName As String = "" 'The name of the client requesting service
-    Dim ClientAppLocn As String = "" 'The location in the Client application requesting service
+    Dim ClientAppNetName As String = "" 'The name of thge client Application Network requesting service. 
+    Dim ClientConnName As String = "" 'The name of the client connection requesting service
     Dim MessageXDoc As System.Xml.Linq.XDocument
     Dim xmessage As XElement 'This will contain the message. It will be added to MessageXDoc.
     Dim xlocns As New List(Of XElement) 'A list of locations. Each location forms part of the reply message. The information in the reply message will be sent to the specified location in the client application.
     Dim MessageText As String = "" 'The text of a message sent through the Application Network.
+
+    Public ConnectionName As String = "" 'The name of the connection used to connect this application to the AppNet.
+    Public AppNetName As String = ""
+
+    Public MsgServiceAppPath As String = "" 'The application path of the Message Service application (ComNet). This is where the "Application.Lock" file will be while ComNet is running
+    Public MsgServiceExePath As String = "" 'The executable path of the Message Service.
+    '----------------------------------------------------------------------------------------------------------------------------------
+
+    'Variable for local processing of an XMessage:
+    Public WithEvents XMsgLocal As New ADVL_Utilities_Library_1.XMessage
+    Dim XDocLocal As New System.Xml.XmlDocument
+    Public StatusLocal As New System.Collections.Specialized.StringCollection
 
     'Declare Forms used by the application:
     Public WithEvents SharePrices As frmSharePrices
@@ -101,13 +139,11 @@ Public Class Main
     Public CalculationsSettings As New DataViewSettingsList 'Stores a list of settings used to display data views on the Calculations forms.
     Public CalculationsSettingsChanged As Boolean = False 'If True then the Calculations Settings List file needs to be updated.
 
-    'Public WithEvents Sequence As frmImportSequence
+    Public WithEvents CompanyList As frmCompanyList 'Form used to select a list of companies and display the Share Price chart.
+
     Public WithEvents Sequence As frmSequence
 
-    'NOTE: THE ViewTable FORM WAS DESIGNED TO REPLACE ALL OTHER DATA VIEW FORMS SUCH AS SharePrices and Financials.
-    '      IT WAS DECIDED TO RETAIN THE SEPARATE FORMS.
-    'Public WithEvents ViewTable As frmViewTable
-    'Public ViewTableList As New ArrayList 'Used for displaying multiple ViewTable forms.
+    Public WithEvents DesignPointChartQuery As frmDesignQuery
 
     Dim WithEvents Zip As ADVL_Utilities_Library_1.ZipComp
 
@@ -117,11 +153,43 @@ Public Class Main
     Dim outputConnString As String
     Dim outputConnection As OleDb.OleDbConnection = New OleDb.OleDbConnection
     Dim outputDa As OleDb.OleDbDataAdapter
-    'Dim outputCmdBuilder As New OleDb.OleDbCommandBuilder(outputDa)
-    'Dim outputCmdBuilder As OleDb.OleDbCommandBuilder()
 
     Public WithEvents XSeq As New ADVL_Utilities_Library_1.XSequence 'This is used to run a set of XML Sequence statements. These are used for data processing.
 
+    Dim cboFieldSelections As New DataGridViewComboBoxColumn 'Used for selecting Y Value fields in the Charts: Share Prices tab
+
+    Dim StockChartDefaults As New XDocument 'Default stock chart settings.
+    Dim PointChartDefaults As New XDocument 'Default point chart (Cross Plot) settings.
+
+    'Main.Load variables:
+    Dim ProjectSelected As Boolean = False 'If True, a project has been selected using Command Arguments. Used in Main.Load.
+    Dim StartupConnectionName As String = "" 'If not "" the application will be connected to the AppNet using this connection name in  Main.Load.
+
+    'The following variables are used to run JavaScript in Web Pages: -------------------
+    Public WithEvents WebXSeq As New ADVL_Utilities_Library_1.XSequence 'This is used to run a set of XML Sequence statements - for restoring Web page settings.
+    'To run a Web XSequence:
+    '  WebXSeq.RunXSequence(xDoc, Status) 'ImportStatus in Import
+    '    Handle events:
+    '      WebXSeq.ErrorMsg
+    '      WebXSeq.Instruction(Info, Locn)
+
+    Private XStatus As New System.Collections.Specialized.StringCollection
+
+    'Variables used to restore Item values on a web page.
+    Private FormName As String
+    Private ItemName As String
+    Private SelectId As String
+
+    'StartProject variables:
+    Private StartProject_AppName As String  'The application name
+    Private StartProject_ConnName As String 'The connection name
+    Private StartProject_ProjID As String   'The project ID
+
+    'Get AppList in Add Application form
+    Dim NewAppName As String 'The new application name that is being added to the the AppList dictionary in the Add Application form.
+
+    'ShowSharePriceTable variable:
+    Dim SharePricesFormNo As Integer = -1 'The number of the form used to display the Share Price Data.
 
 #End Region 'Variable Declarations ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -137,13 +205,13 @@ Public Class Main
         End Set
     End Property
 
-    Private _connectedToAppNet As Boolean = False  'True if the application is connected to the Application Network.
-    Property ConnectedToAppnet As Boolean
+    Private _connectedToComNet As Boolean = False  'True if the application is connected to the Communication Network (Message Service).
+    Property ConnectedToComNet As Boolean
         Get
-            Return _connectedToAppNet
+            Return _connectedToComNet
         End Get
         Set(value As Boolean)
-            _connectedToAppNet = value
+            _connectedToComNet = value
         End Set
     End Property
 
@@ -157,56 +225,73 @@ Public Class Main
                 Message.Add("Empty message received!")
             Else
                 _instrReceived = value
-
-                'Add the message to the XMessages window:
-                Message.Color = Color.Blue
-                Message.FontStyle = FontStyle.Bold
-                Message.XAdd("Message received: " & vbCrLf)
-                Message.SetNormalStyle()
-                Message.XAdd(_instrReceived & vbCrLf & vbCrLf)
-
-                If _instrReceived.StartsWith("<XMsg>") Then 'This is an XMessage set of instructions.
-                    Try
-                        'Inititalise the reply message:
-                        Dim Decl As New XDeclaration("1.0", "utf-8", "yes")
-                        MessageXDoc = New XDocument(Decl, Nothing) 'Reply message - this will be sent to the Client App.
-                        xmessage = New XElement("XMsg")
-                        xlocns.Add(New XElement("Main")) 'Initially set the location in the Client App to Main.
-
-                        'Run the received message:
-                        Dim XmlHeader As String = "<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>"
-                        XDoc.LoadXml(XmlHeader & vbCrLf & _instrReceived)
-                        XMsg.Run(XDoc, Status)
-                    Catch ex As Exception
-                        Message.Add("Error running XMsg: " & ex.Message & vbCrLf)
-                    End Try
-
-                    'XMessage has been run.
-                    'Reply to this message:
-                    'Add the message reply to the XMessages window:
-                    'Complete the MessageXDoc:
-                    xmessage.Add(xlocns(xlocns.Count - 1)) 'Add the last location reply instructions to the message.
-                    MessageXDoc.Add(xmessage)
-                    MessageText = MessageXDoc.ToString
-
-                    If ClientAppName = "" Then
-                        'No client to send a message to!
-                    Else
-                        Message.Color = Color.Red
-                        Message.FontStyle = FontStyle.Bold
-                        Message.XAdd("Message sent to " & ClientAppName & ":" & vbCrLf)
-                        Message.SetNormalStyle()
-                        Message.XAdd(MessageText & vbCrLf & vbCrLf)
-                        'SendMessage sends the contents of MessageText to MessageDest.
-                        SendMessage() 'This subroutine triggers the timer to send the message after a short delay.
-                    End If
-                Else
-
-                End If
+                ProcessInstructions(_instrReceived)
             End If
-
         End Set
     End Property
+
+    Private Sub ProcessInstructions(ByVal Instructions As String)
+        'Process the XMessage instructions.
+
+        'Add the message header to the XMessages window:
+        Message.XAddText("Message received: " & vbCrLf, "XmlReceivedNotice")
+
+        If Instructions.StartsWith("<XMsg>") Then 'This is an XMessage set of instructions.
+            Try
+                'Inititalise the reply message:
+                Dim Decl As New XDeclaration("1.0", "utf-8", "yes")
+                MessageXDoc = New XDocument(Decl, Nothing) 'Reply message - this will be sent to the Client App.
+                xmessage = New XElement("XMsg")
+                xlocns.Add(New XElement("Main")) 'Initially set the location in the Client App to Main.
+
+                'Run the received message:
+                Dim XmlHeader As String = "<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>"
+
+                XDoc.LoadXml(XmlHeader & vbCrLf & Instructions.Replace("&", "&amp;")) 'Replace "&" with "&amp:" before loading the XML text.
+                Message.XAddXml(XDoc)   'Add the message to the XMessages window.
+                Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                XMsg.Run(XDoc, Status)
+            Catch ex As Exception
+                Message.Add("Error running XMsg: " & ex.Message & vbCrLf)
+            End Try
+
+            'XMessage has been run.
+            'Reply to this message:
+            'Add the message reply to the XMessages window:
+            'Complete the MessageXDoc:
+            xmessage.Add(xlocns(xlocns.Count - 1)) 'Add the last location reply instructions to the message.
+            MessageXDoc.Add(xmessage)
+            MessageText = MessageXDoc.ToString
+
+            If ClientConnName = "" Then
+                'No client to send a message to - process the message locally.
+                Message.XAddText("Message processed locally:" & vbCrLf, "XmlSentNotice")
+                Message.XAddXml(MessageText)
+                Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                ProcessLocalInstructions(MessageText)
+            Else
+                Message.XAddText("Message sent to " & ClientConnName & ":" & vbCrLf, "XmlSentNotice")
+                Message.XAddXml(MessageText)
+                Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                SendMessage() 'This subroutine triggers the timer to send the message after a short delay.
+            End If
+        Else 'This is not an XMessage!
+            Message.XAddText("The message is not an XMessage: " & Instructions & vbCrLf, "Normal")
+        End If
+    End Sub
+
+    Private Sub ProcessLocalInstructions(ByVal Instructions As String)
+        'Process the XMessage instructions locally.
+
+        If Instructions.StartsWith("<XMsg>") Then 'This is an XMessage set of instructions.
+            'Run the received message:
+            Dim XmlHeader As String = "<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>"
+            XDocLocal.LoadXml(XmlHeader & vbCrLf & Instructions)
+            XMsgLocal.Run(XDocLocal, StatusLocal)
+        Else 'This is not an XMessage!
+            Message.XAddText("The message is not an XMessage: " & Instructions & vbCrLf, "Normal")
+        End If
+    End Sub
 
     Private _sharePriceDbPath As String = "" 'The path of the share price database.
     Property SharePriceDbPath As String
@@ -381,13 +466,23 @@ Public Class Main
         End Set
     End Property
 
+    Private _startPageFileName As String = "" 'The file name of the html document displayed in the Start Page tab.
+    Public Property StartPageFileName As String
+        Get
+            Return _startPageFileName
+        End Get
+        Set(value As String)
+            _startPageFileName = value
+        End Set
+    End Property
+
 #End Region 'Properties -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #Region " Process XML Files - Read and write XML files." '-------------------------------------------------------------------------------------------------------------------------------------
 
     Private Sub SaveFormSettings()
         'Save the form settings in an XML document.
-        'Try
+
         Dim settingsData = <?xml version="1.0" encoding="utf-8"?>
                            <!---->
                            <!--Form settings for Main form.-->
@@ -396,6 +491,8 @@ Public Class Main
                                <Top><%= Me.Top %></Top>
                                <Width><%= Me.Width %></Width>
                                <Height><%= Me.Height %></Height>
+                               <MsgServiceAppPath><%= MsgServiceAppPath %></MsgServiceAppPath>
+                               <MsgServiceExePath><%= MsgServiceExePath %></MsgServiceExePath>
                                <!---->
                                <SelectedMainTabIndex><%= TabControl1.SelectedIndex %></SelectedMainTabIndex>
                                <SelectedViewDataTabIndex><%= TabControl3.SelectedIndex %></SelectedViewDataTabIndex>
@@ -411,16 +508,32 @@ Public Class Main
                                <!--Calculations Settings-->
                                <SelectedCalculationsTabIndex><%= TabControl2.SelectedIndex %></SelectedCalculationsTabIndex>
                                <!--Copy Data-->
-                               <CopyDataInputDb><%= cmbCopyDataInputDb.SelectedItem.ToString %></CopyDataInputDb>
-                               <CopyDataInputData><%= cmbCopyDataInputData.SelectedItem.ToString %></CopyDataInputData>
-                               <CopyDataOutputDb><%= cmbCopyDataOutputDb.SelectedItem.ToString %></CopyDataOutputDb>
-                               <CopyDataOutputTable><%= cmbCopyDataOutputData.SelectedItem.ToString %></CopyDataOutputTable>
+                               <%= If(cmbCopyDataInputDb.SelectedIndex = -1,
+                                   <CopyDataInputDb></CopyDataInputDb>,
+                                   <CopyDataInputDb><%= cmbCopyDataInputDb.SelectedItem.ToString %></CopyDataInputDb>) %>
+                               <%= If(cmbCopyDataInputData.SelectedIndex = -1,
+                                   <CopyDataInputData></CopyDataInputData>,
+                                   <CopyDataInputData><%= cmbCopyDataInputData.SelectedItem.ToString %></CopyDataInputData>) %>
+                               <%= If(cmbCopyDataOutputDb.SelectedIndex = -1,
+                                      <CopyDataOutputDb></CopyDataOutputDb>,
+                                      <CopyDataOutputDb><%= cmbCopyDataOutputDb.SelectedItem.ToString %></CopyDataOutputDb>) %>
+                               <%= If(cmbCopyDataOutputData.SelectedIndex = -1,
+                                   <CopyDataOutputTable></CopyDataOutputTable>,
+                                   <CopyDataOutputTable><%= cmbCopyDataOutputData.SelectedItem.ToString %></CopyDataOutputTable>) %>
                                <CopyDataSettingsFile><%= CopyDataSettingsFile %></CopyDataSettingsFile>
                                <!--Select Data-->
-                               <SelectDataInputDb><%= cmbSelectDataInputDb.SelectedItem.ToString %></SelectDataInputDb>
-                               <SelectDataInputData><%= cmbSelectDataInputData.SelectedItem.ToString %></SelectDataInputData>
-                               <SelectDataOutputDb><%= cmbSelectDataOutputDb.SelectedItem.ToString %></SelectDataOutputDb>
-                               <SelectDataOutputTable><%= cmbSelectDataOutputData.SelectedItem.ToString %></SelectDataOutputTable>
+                               <%= If(cmbSelectDataInputDb.SelectedIndex = -1,
+                                   <SelectDataInputDb></SelectDataInputDb>,
+                                   <SelectDataInputDb><%= cmbSelectDataInputDb.SelectedItem.ToString %></SelectDataInputDb>) %>
+                               <%= If(cmbSelectDataInputData.SelectedIndex = -1,
+                                   <SelectDataInputData></SelectDataInputData>,
+                                   <SelectDataInputData><%= cmbSelectDataInputData.SelectedItem.ToString %></SelectDataInputData>) %>
+                               <%= If(cmbSelectDataOutputDb.SelectedIndex = -1,
+                                   <SelectDataOutputDb></SelectDataOutputDb>,
+                                   <SelectDataOutputDb><%= cmbSelectDataOutputDb.SelectedItem.ToString %></SelectDataOutputDb>) %>
+                               <%= If(cmbSelectDataOutputData.SelectedIndex = -1,
+                                   <SelectDataOutputTable></SelectDataOutputTable>,
+                                   <SelectDataOutputTable><%= cmbSelectDataOutputData.SelectedItem.ToString %></SelectDataOutputTable>) %>
                                <SelectDataSettingsFile><%= SelectDataSettingsFile %></SelectDataSettingsFile>
                                <!--Simple Calculations-->
                                <SimpleCalcsSettingsFile><%= SimpleCalcsSettingsFile %></SimpleCalcsSettingsFile>
@@ -434,40 +547,105 @@ Public Class Main
                                <!--Date Selections-->
                                <DateSelectionSettingsFile><%= DateSelectSettingsFile %></DateSelectionSettingsFile>
                                <!--Daily Prices Calculations-->
-                               <DailyPricesInputDb><%= cmbDailyPriceInputDb.SelectedItem.ToString %></DailyPricesInputDb>
-                               <DailyPricesInputTable><%= cmbDailyPriceInputTable.SelectedItem.ToString %></DailyPricesInputTable>
-                               <DailyPricesOutoutDb><%= cmbDailyPriceOutputDb.SelectedItem.ToString %></DailyPricesOutoutDb>
-                               <DailyPricesOutputTable><%= cmbDailyPriceOutputTable.SelectedItem.ToString %></DailyPricesOutputTable>
-                               <DailyPricesCalculationType><%= cmbDailyPriceCalcType.SelectedItem.ToString %></DailyPricesCalculationType>
+                               <%= If(cmbDailyPriceInputDb.SelectedIndex = -1,
+                                   <DailyPricesInputDb></DailyPricesInputDb>,
+                                   <DailyPricesInputDb><%= cmbDailyPriceInputDb.SelectedItem.ToString %></DailyPricesInputDb>) %>
+                               <%= If(cmbDailyPriceInputTable.SelectedIndex = -1,
+                                   <DailyPricesInputTable></DailyPricesInputTable>,
+                                   <DailyPricesInputTable><%= cmbDailyPriceInputTable.SelectedItem.ToString %></DailyPricesInputTable>) %>
+                               <%= If(cmbDailyPriceOutputDb.SelectedIndex = -1,
+                                   <DailyPricesOutoutDb></DailyPricesOutoutDb>,
+                                   <DailyPricesOutoutDb><%= cmbDailyPriceOutputDb.SelectedItem.ToString %></DailyPricesOutoutDb>) %>
+                               <%= If(cmbDailyPriceOutputTable.SelectedIndex = -1,
+                                   <DailyPricesOutputTable></DailyPricesOutputTable>,
+                                   <DailyPricesOutputTable><%= cmbDailyPriceOutputTable.SelectedItem.ToString %></DailyPricesOutputTable>) %>
+                               <%= If(cmbDailyPriceCalcType.SelectedIndex = -1,
+                                   <DailyPricesCalculationType></DailyPricesCalculationType>,
+                                   <DailyPricesCalculationType><%= cmbDailyPriceCalcType.SelectedItem.ToString %></DailyPricesCalculationType>) %>
+                               <!--Utilities-->
+                               <%= If(cmbUtilTablesDatabase.SelectedIndex = -1,
+                                   <UtilitiesTablesDatabase></UtilitiesTablesDatabase>,
+                                   <UtilitiesTablesDatabase><%= cmbUtilTablesDatabase.SelectedItem.ToString %></UtilitiesTablesDatabase>) %>
+                               <!--Share Price Charts-->
+                               <%= If(cmbSPChartDb.SelectedIndex = -1,
+                                   <SPChartDatabase></SPChartDatabase>,
+                                   <SPChartDatabase><%= cmbSPChartDb.SelectedItem.ToString %></SPChartDatabase>) %>
+                               <%= If(cmbChartDataTable.SelectedIndex = -1,
+                                   <SPChartDataTable></SPChartDataTable>,
+                                   <SPChartDataTable><%= cmbChartDataTable.SelectedItem.ToString %></SPChartDataTable>) %>
+                               <%= If(cmbCompanyCodeCol.SelectedIndex = -1,
+                                   <SPChartCompanyCodeColumn></SPChartCompanyCodeColumn>,
+                                   <SPChartCompanyCodeColumn><%= cmbCompanyCodeCol.SelectedItem.ToString %></SPChartCompanyCodeColumn>) %>
+                               <SPChartCompanyCode><%= txtSPChartCompanyCode.Text %></SPChartCompanyCode>
+                               <SPChartSeriesName><%= txtSeriesName.Text %></SPChartSeriesName>
+                               <%= If(cmbXValues.SelectedIndex = -1,
+                                   <SPChartXValues></SPChartXValues>,
+                                   <SPChartXValues><%= cmbXValues.SelectedItem.ToString %></SPChartXValues>) %>
+                               <%= If(DataGridView1.RowCount = 4,
+                                   <SPChartHighPrice><%= DataGridView1.Rows(0).Cells(1).Value %></SPChartHighPrice>,
+                                   <SPChartHighPrice></SPChartHighPrice>) %>
+                               <%= If(DataGridView1.RowCount = 4,
+                                   <SPChartLowPrice><%= DataGridView1.Rows(1).Cells(1).Value %></SPChartLowPrice>,
+                                   <SPChartLowPrice></SPChartLowPrice>) %>
+                               <%= If(DataGridView1.RowCount = 4,
+                                   <SPChartOpenPrice><%= DataGridView1.Rows(2).Cells(1).Value %></SPChartOpenPrice>,
+                                  <SPChartOpenPrice></SPChartOpenPrice>) %>
+                               <%= If(DataGridView1.RowCount = 4,
+                                  <SPChartClosePrice><%= DataGridView1.Rows(3).Cells(1).Value %></SPChartClosePrice>,
+                                  <SPChartClosePrice></SPChartClosePrice>) %>
+                               <SPChartTitleText><%= txtChartTitle.Text %></SPChartTitleText>
+                               <SPChartTitleFontName><%= txtChartTitle.Font.Name %></SPChartTitleFontName>
+                               <SPChartTitleColor><%= txtChartTitle.ForeColor %></SPChartTitleColor>
+                               <SPChartTitleSize><%= txtChartTitle.Font.Size %></SPChartTitleSize>
+                               <SPChartTitleBold><%= txtChartTitle.Font.Bold %></SPChartTitleBold>
+                               <SPChartTitleItalic><%= txtChartTitle.Font.Italic %></SPChartTitleItalic>
+                               <SPChartTitleUnderline><%= txtChartTitle.Font.Underline %></SPChartTitleUnderline>
+                               <SPChartTitleStrikeout><%= txtChartTitle.Font.Strikeout %></SPChartTitleStrikeout>
+                               <%= If(cmbAlignment.SelectedIndex = -1,
+                                   <SPChartTitleAlignment></SPChartTitleAlignment>,
+                                   <SPChartTitleAlignment><%= cmbAlignment.SelectedItem.ToString %></SPChartTitleAlignment>) %>
+                               <SPChartSettingsFile><%= txtStockChartSettings.Text %></SPChartSettingsFile>
+                               <SPChartUseDefaults><%= chkUseStockChartDefaults.Checked %></SPChartUseDefaults>
+                               <SPChartUseDateRange><%= chkSPChartUseDateRange.Checked %></SPChartUseDateRange>
+                               <SPChartFromDate><%= dtpSPChartFromDate.Value %></SPChartFromDate>
+                               <SPChartToDate><%= dtpSPChartToDate.Value %></SPChartToDate>
+                               <!--Cross Plot Charts-->
+                               <%= If(cmbPointChartDb.SelectedIndex = -1,
+                                   <CrossPlotDatabase></CrossPlotDatabase>,
+                                   <CrossPlotDatabase><%= cmbPointChartDb.SelectedItem.ToString %></CrossPlotDatabase>) %>
+                               <CrossPlotQuery><%= txtPointChartQuery.Text %></CrossPlotQuery>
+                               <CrossPlotSeriesName><%= txtPointSeriesName.Text %></CrossPlotSeriesName>
+                               <%= If(cmbPointXValues.SelectedIndex = -1,
+                                   <CrossPlotXValues></CrossPlotXValues>,
+                                   <CrossPlotXValues><%= cmbPointXValues.SelectedItem.ToString %></CrossPlotXValues>) %>
+                               <%= If(cmbPointYValues.SelectedIndex = -1,
+                                   <CrossPlotYValues></CrossPlotYValues>,
+                                   <CrossPlotYValues><%= cmbPointYValues.SelectedItem.ToString %></CrossPlotYValues>) %>
+                               <CrossPlotTitleText><%= txtPointChartTitle.Text %></CrossPlotTitleText>
+                               <CrossPlotTitleFontName><%= txtPointChartTitle.Font.Name %></CrossPlotTitleFontName>
+                               <CrossPlotTitleColor><%= txtPointChartTitle.ForeColor %></CrossPlotTitleColor>
+                               <CrossPlotTitleSize><%= txtPointChartTitle.Font.Size %></CrossPlotTitleSize>
+                               <CrossPlotTitleBold><%= txtPointChartTitle.Font.Bold %></CrossPlotTitleBold>
+                               <CrossPlotTitleItalic><%= txtPointChartTitle.Font.Italic %></CrossPlotTitleItalic>
+                               <CrossPlotTitleUnderline><%= txtPointChartTitle.Font.Underline %></CrossPlotTitleUnderline>
+                               <CrossPlotTitleStrikeout><%= txtPointChartTitle.Font.Strikeout %></CrossPlotTitleStrikeout>
+                               <%= If(cmbPointChartAlignment.SelectedIndex = -1,
+                                   <CrossPlotTitleAlignment></CrossPlotTitleAlignment>,
+                                   <CrossPlotTitleAlignment><%= cmbPointChartAlignment.SelectedItem.ToString %></CrossPlotTitleAlignment>) %>
+                               <CrossPlotSettingsFile><%= txtPointChartSettings.Text %></CrossPlotSettingsFile>
+                               <CrossPlotUseDefaults><%= chkUsePointChartDefaults.Checked %></CrossPlotUseDefaults>
+                               <CrossPlotAutoXRange><%= chkAutoXRange.Checked %></CrossPlotAutoXRange>
+                               <CrossPlotXMin><%= txtPointXMin.Text %></CrossPlotXMin>
+                               <CrossPlotXMax><%= txtPointXMax.Text %></CrossPlotXMax>
+                               <CrossPlotAutoYRange><%= chkAutoYRange.Checked %></CrossPlotAutoYRange>
+                               <CrossPlotYMin><%= txtPointYMin.Text %></CrossPlotYMin>
+                               <CrossPlotYMax><%= txtPointYMax.Text %></CrossPlotYMax>
                            </FormSettings>
 
-        'NOTE: THIS DATA IS NOW STORED IN SharePricesSettingsList
-        '                  <ViewSharePricesItems><%= From item In lstSharePrices.Items
-        '                                  Select
-        '                          <Description><%= item %></Description>
-        '                              %>
-        '                  </ViewSharePricesItems>
-        'NOTE: THIS DATA IS NOW STROED IN FinancialsSettingsList
-        '                  <ViewFinancialsItems><%= From item In lstFinancials.Items
-        '                         Select
-        '                         <Description><%= item %></Description>
-        '                             %>
-        '                  </ViewFinancialsItems>
-
-        'NOTE: Separate tabs now used for different calculation types.
-        '<SimpleCalcType><%= cmbCalcType.SelectedItem.ToString %></SimpleCalcType>
-
-        'Add code to include other settings to save after the comment line <!---->
-
-
-
         Dim SettingsFileName As String = "FormSettings_" & ApplicationInfo.Name & "_" & Me.Text & ".xml"
-            Debug.Print("Writing settings file: " & SettingsFileName)
-            Project.SaveXmlSettings(SettingsFileName, settingsData)
-        'Catch ex As Exception
-        'Message.AddWarning("Error saving main form settings: " & ex.Message & vbCrLf)
-        'Debug.Print("Error saving main form settings: " & ex.Message)
-        'End Try
+        Debug.Print("Writing settings file: " & SettingsFileName)
+        Project.SaveXmlSettings(SettingsFileName, settingsData)
+
     End Sub
 
     Private Sub RestoreFormSettings()
@@ -492,6 +670,9 @@ Public Class Main
             If Settings.<FormSettings>.<Height>.Value <> Nothing Then Me.Height = Settings.<FormSettings>.<Height>.Value
             If Settings.<FormSettings>.<Width>.Value <> Nothing Then Me.Width = Settings.<FormSettings>.<Width>.Value
 
+            If Settings.<FormSettings>.<MsgServiceAppPath>.Value <> Nothing Then MsgServiceAppPath = Settings.<FormSettings>.<MsgServiceAppPath>.Value
+            If Settings.<FormSettings>.<MsgServiceExePath>.Value <> Nothing Then MsgServiceExePath = Settings.<FormSettings>.<MsgServiceExePath>.Value
+
             'Add code to read other saved setting here:
 
             'Restore Main Tab selection (Project Information - Settings - View Data - Calculations - Charts)
@@ -508,6 +689,10 @@ Public Class Main
                 txtSharePricesDataList.Text = SharePriceDataViewList
                 SharePricesSettings.LoadFile() 'Load the settings list in SharePricesSettings.
                 DisplaySharePricesList()
+            Else
+                SharePriceDataViewList = "Default.SPDataList"
+                SharePricesSettings.ListFileName = SharePriceDataViewList 'Set the file name in SharePricesSettings List.
+                txtSharePricesDataList.Text = SharePriceDataViewList
             End If
 
             'Restore View Data - Financials settings
@@ -518,6 +703,10 @@ Public Class Main
                 txtFinancialsDataList.Text = FinancialsDataViewList
                 FinancialsSettings.LoadFile() 'Load the settings list in FinancialsSettingsList.
                 DisplayFinancialsList()
+            Else
+                FinancialsDataViewList = "Default.FinDataList"
+                FinancialsSettings.ListFileName = FinancialsDataViewList 'Set the file name in FinancialsSettingsList.
+                txtFinancialsDataList.Text = FinancialsDataViewList
             End If
 
             'Restore View Data - Calculations settings
@@ -528,6 +717,10 @@ Public Class Main
                 txtCalcsDataList.Text = CalculationsDataViewList
                 CalculationsSettings.LoadFile() 'Load the settings list in CalculationsSettingsList.
                 DisplayCalculationsList()
+            Else
+                CalculationsDataViewList = "Default.CalcDataList"
+                CalculationsSettings.ListFileName = CalculationsDataViewList 'Set the file name in CalculationsSettingsList.
+                txtCalcsDataList.Text = CalculationsDataViewList
             End If
 
             If Settings.<FormSettings>.<NewsDbPath>.Value <> Nothing Then NewsDbPath = Settings.<FormSettings>.<NewsDbPath>.Value
@@ -589,30 +782,181 @@ Public Class Main
                     cmbDailyPriceCalcType.SelectedIndex = 0
                 End If
             Else
-                    cmbDailyPriceCalcType.SelectedIndex = 0
+                cmbDailyPriceCalcType.SelectedIndex = 0
             End If
 
+            'Utilities
+            If Settings.<FormSettings>.<UtilitiesTablesDatabase>.Value <> Nothing Then
+                cmbUtilTablesDatabase.SelectedIndex = cmbUtilTablesDatabase.FindStringExact(Settings.<FormSettings>.<UtilitiesTablesDatabase>.Value)
+                UtilTablesDatabaseChanged()
+            End If
 
+            'Share Price Charts
+            If Settings.<FormSettings>.<SPChartDatabase>.Value <> Nothing Then cmbSPChartDb.SelectedIndex = cmbSPChartDb.FindStringExact(Settings.<FormSettings>.<SPChartDatabase>.Value)
 
-            'NOTE: THIS DATA IS NOW STORED IN SharePricesSettingsList
-            ''Read the list of ViewSharePricesItems:
-            'Dim ViewSharePricesItems = From item In Settings.<FormSettings>.<ViewSharePricesItems>.<Description>
-            'lstSharePrices.Items.Clear()
-            'For Each item In ViewSharePricesItems
-            '    lstSharePrices.Items.Add(item.Value)
-            'Next
+            If Settings.<FormSettings>.<SPChartDataTable>.Value <> Nothing Then cmbChartDataTable.SelectedIndex = cmbChartDataTable.FindStringExact(Settings.<FormSettings>.<SPChartDataTable>.Value)
+            If Settings.<FormSettings>.<SPChartCompanyCodeColumn>.Value <> Nothing Then cmbCompanyCodeCol.SelectedIndex = cmbCompanyCodeCol.FindStringExact(Settings.<FormSettings>.<SPChartCompanyCodeColumn>.Value)
+            If Settings.<FormSettings>.<SPChartCompanyCode>.Value <> Nothing Then txtSPChartCompanyCode.Text = Settings.<FormSettings>.<SPChartCompanyCode>.Value
+            UpdateSPChartQuery()
+            UpdateChartSharePricesTab()
 
-            'NOTE: THIS DATA IS NOW STROED IN FinancialsSettingsList
-            ''Read the list of ViewFinancialsItems:
-            'Dim ViewFinancialsItems = From item In Settings.<FormSettings>.<ViewFinancialsItems>.<Description>
+            If Settings.<FormSettings>.<SPChartSeriesName>.Value <> Nothing Then txtSeriesName.Text = Settings.<FormSettings>.<SPChartSeriesName>.Value
+            If Settings.<FormSettings>.<SPChartXValues>.Value <> Nothing Then cmbXValues.SelectedIndex = cmbXValues.FindStringExact(Settings.<FormSettings>.<SPChartXValues>.Value)
+            If Settings.<FormSettings>.<SPChartHighPrice>.Value <> Nothing Then DataGridView1.Rows(0).Cells(1).Value = Settings.<FormSettings>.<SPChartHighPrice>.Value
+            If Settings.<FormSettings>.<SPChartLowPrice>.Value <> Nothing Then DataGridView1.Rows(1).Cells(1).Value = Settings.<FormSettings>.<SPChartLowPrice>.Value
+            If Settings.<FormSettings>.<SPChartOpenPrice>.Value <> Nothing Then DataGridView1.Rows(2).Cells(1).Value = Settings.<FormSettings>.<SPChartOpenPrice>.Value
+            If Settings.<FormSettings>.<SPChartClosePrice>.Value <> Nothing Then DataGridView1.Rows(3).Cells(1).Value = Settings.<FormSettings>.<SPChartClosePrice>.Value
 
-            'lstFinancials.Items.Clear()
-            'For Each item In ViewFinancialsItems
-            '    lstFinancials.Items.Add(item.Value)
-            'Next
+            If Settings.<FormSettings>.<SPChartTitleText>.Value <> Nothing Then txtChartTitle.Text = Settings.<FormSettings>.<SPChartTitleText>.Value
+            Dim myFontStyle As FontStyle = FontStyle.Regular
+            Dim myFontSize As Single = 10
+            Dim myFontName As String = "Arial"
+
+            If Settings.<FormSettings>.<SPChartTitleFontName>.Value <> Nothing Then
+                myFontName = Settings.<FormSettings>.<SPChartTitleFontName>.Value
+            End If
+
+            If Settings.<FormSettings>.<SPChartTitleColor>.Value <> Nothing Then txtChartTitle.ForeColor = Color.FromName(Settings.<FormSettings>.<SPChartTitleColor>.Value)
+
+            If Settings.<FormSettings>.<SPChartTitleSize>.Value <> Nothing Then
+                myFontSize = Settings.<FormSettings>.<SPChartTitleSize>.Value
+            End If
+
+            If Settings.<FormSettings>.<SPChartTitleBold>.Value <> Nothing Then
+                If Settings.<FormSettings>.<SPChartTitleBold>.Value = "true" Then
+                    myFontStyle = myFontStyle Or FontStyle.Bold
+                End If
+            End If
+
+            If Settings.<FormSettings>.<SPChartTitleItalic>.Value <> Nothing Then
+                If Settings.<FormSettings>.<SPChartTitleItalic>.Value = "true" Then
+                    myFontStyle = myFontStyle Or FontStyle.Italic
+                End If
+            End If
+
+            If Settings.<FormSettings>.<SPChartTitleUnderline>.Value <> Nothing Then
+                If Settings.<FormSettings>.<SPChartTitleUnderline>.Value = "true" Then
+                    myFontStyle = myFontStyle Or FontStyle.Underline
+                End If
+            End If
+
+            If Settings.<FormSettings>.<SPChartTitleStrikeout>.Value <> Nothing Then
+                If Settings.<FormSettings>.<SPChartTitleStrikeout>.Value = "true" Then
+                    myFontStyle = myFontStyle Or FontStyle.Strikeout
+                End If
+            End If
+
+            txtChartTitle.Font = New Font(myFontName, myFontSize, myFontStyle)
+            If Settings.<FormSettings>.<SPChartTitleAlignment>.Value <> Nothing Then cmbAlignment.SelectedIndex = cmbAlignment.FindStringExact(Settings.<FormSettings>.<SPChartTitleAlignment>.Value)
+
+            If Settings.<FormSettings>.<SPChartSettingsFile>.Value <> Nothing Then
+                txtStockChartSettings.Text = Settings.<FormSettings>.<SPChartSettingsFile>.Value
+                Project.ReadXmlData(txtStockChartSettings.Text, StockChartDefaults)
+
+                If StockChartDefaults Is Nothing Then
+
+                Else
+                    rtbStockChartDefaults.Text = StockChartDefaults.ToString
+                    FormatXmlText(rtbStockChartDefaults)
+                End If
+            End If
+
+            If Settings.<FormSettings>.<SPChartUseDefaults>.Value <> Nothing Then chkUseStockChartDefaults.Checked = Settings.<FormSettings>.<SPChartUseDefaults>.Value
+            If Settings.<FormSettings>.<SPChartUseDateRange>.Value <> Nothing Then chkSPChartUseDateRange.Checked = Settings.<FormSettings>.<SPChartUseDateRange>.Value
+            If Settings.<FormSettings>.<SPChartFromDate>.Value <> Nothing Then dtpSPChartFromDate.Value = Settings.<FormSettings>.<SPChartFromDate>.Value
+            If Settings.<FormSettings>.<SPChartToDate>.Value <> Nothing Then dtpSPChartToDate.Value = Settings.<FormSettings>.<SPChartToDate>.Value
+            UpdateSPChartQuery()
+
+            'Cross Plot Charts
+            If Settings.<FormSettings>.<CrossPlotDatabase>.Value <> Nothing Then cmbPointChartDb.SelectedIndex = cmbPointChartDb.FindStringExact(Settings.<FormSettings>.<CrossPlotDatabase>.Value)
+            If Settings.<FormSettings>.<CrossPlotQuery>.Value <> Nothing Then txtPointChartQuery.Text = Settings.<FormSettings>.<CrossPlotQuery>.Value
+            UpdateChartCrossPlotsTab()
+            If Settings.<FormSettings>.<CrossPlotSeriesName>.Value <> Nothing Then txtPointSeriesName.Text = Settings.<FormSettings>.<CrossPlotSeriesName>.Value
+            If Settings.<FormSettings>.<CrossPlotXValues>.Value <> Nothing Then cmbPointXValues.SelectedIndex = cmbPointXValues.FindStringExact(Settings.<FormSettings>.<CrossPlotXValues>.Value)
+            If Settings.<FormSettings>.<CrossPlotYValues>.Value <> Nothing Then cmbPointYValues.SelectedIndex = cmbPointYValues.FindStringExact(Settings.<FormSettings>.<CrossPlotYValues>.Value)
+            If Settings.<FormSettings>.<CrossPlotTitleText>.Value <> Nothing Then txtPointChartTitle.Text = Settings.<FormSettings>.<CrossPlotTitleText>.Value
+
+            If Settings.<FormSettings>.<CrossPlotTitleFontName>.Value <> Nothing Then
+                myFontName = Settings.<FormSettings>.<CrossPlotTitleFontName>.Value
+            End If
+
+            If Settings.<FormSettings>.<CrossPlotTitleColor>.Value <> Nothing Then txtPointChartTitle.ForeColor = Color.FromName(Settings.<FormSettings>.<CrossPlotTitleColor>.Value)
+
+            If Settings.<FormSettings>.<CrossPlotTitleSize>.Value <> Nothing Then
+                myFontSize = Settings.<FormSettings>.<CrossPlotTitleSize>.Value
+            End If
+
+            If Settings.<FormSettings>.<CrossPlotTitleBold>.Value <> Nothing Then
+                If Settings.<FormSettings>.<CrossPlotTitleBold>.Value = "true" Then
+                    myFontStyle = myFontStyle Or FontStyle.Bold
+                End If
+            End If
+
+            If Settings.<FormSettings>.<CrossPlotTitleItalic>.Value <> Nothing Then
+                If Settings.<FormSettings>.<CrossPlotTitleItalic>.Value = "true" Then
+                    myFontStyle = myFontStyle Or FontStyle.Italic
+                End If
+            End If
+
+            If Settings.<FormSettings>.<CrossPlotTitleUnderline>.Value <> Nothing Then
+                If Settings.<FormSettings>.<CrossPlotTitleUnderline>.Value = "true" Then
+                    myFontStyle = myFontStyle Or FontStyle.Underline
+                End If
+            End If
+
+            If Settings.<FormSettings>.<CrossPlotTitleStrikeout>.Value <> Nothing Then
+                If Settings.<FormSettings>.<CrossPlotTitleStrikeout>.Value = "true" Then
+                    myFontStyle = myFontStyle Or FontStyle.Strikeout
+                End If
+            End If
+
+            txtPointChartTitle.Font = New Font(myFontName, myFontSize, myFontStyle)
+
+            If Settings.<FormSettings>.<CrossPlotTitleAlignment>.Value <> Nothing Then cmbPointChartAlignment.SelectedIndex = cmbPointChartAlignment.FindStringExact(Settings.<FormSettings>.<CrossPlotTitleAlignment>.Value)
+
+            If Settings.<FormSettings>.<CrossPlotSettingsFile>.Value <> Nothing Then
+                txtPointChartSettings.Text = Settings.<FormSettings>.<CrossPlotSettingsFile>.Value
+                Project.ReadXmlData(txtPointChartSettings.Text, PointChartDefaults)
+                If PointChartDefaults Is Nothing Then
+
+                Else
+                    rtbPointChartDefaults.Text = PointChartDefaults.ToString
+                    FormatXmlText(rtbPointChartDefaults)
+                End If
+            End If
+
+            If Settings.<FormSettings>.<CrossPlotUseDefaults>.Value <> Nothing Then chkUsePointChartDefaults.Checked = Settings.<FormSettings>.<CrossPlotUseDefaults>.Value
+
+            If Settings.<FormSettings>.<CrossPlotAutoXRange>.Value <> Nothing Then chkAutoXRange.Checked = Settings.<FormSettings>.<CrossPlotAutoXRange>.Value
+
+            If Settings.<FormSettings>.<CrossPlotXMin>.Value <> Nothing Then
+                txtPointXMin.Text = Settings.<FormSettings>.<CrossPlotXMin>.Value
+            Else
+                txtPointXMin.Text = "-100"
+            End If
+
+            If Settings.<FormSettings>.<CrossPlotXMax>.Value <> Nothing Then
+                txtPointXMax.Text = Settings.<FormSettings>.<CrossPlotXMax>.Value
+            Else
+                txtPointXMax.Text = "100"
+            End If
+
+            If Settings.<FormSettings>.<CrossPlotAutoYRange>.Value <> Nothing Then chkAutoYRange.Checked = Settings.<FormSettings>.<CrossPlotAutoYRange>.Value
+
+            If Settings.<FormSettings>.<CrossPlotYMin>.Value <> Nothing Then
+                txtPointYMin.Text = Settings.<FormSettings>.<CrossPlotYMin>.Value
+            Else
+                txtPointYMin.Text = "-100"
+            End If
+
+            If Settings.<FormSettings>.<CrossPlotYMax>.Value <> Nothing Then
+                txtPointYMax.Text = Settings.<FormSettings>.<CrossPlotYMax>.Value
+            Else
+                txtPointYMax.Text = "100"
+            End If
+
         Else
             Debug.Print("Settings file not found.")
-
         End If
     End Sub
 
@@ -930,11 +1274,7 @@ Public Class Main
 #Region " Form Display Methods - Code used to display this form." '----------------------------------------------------------------------------------------------------------------------------
 
     Private Sub Main_Load(sender As Object, e As EventArgs) Handles Me.Load
-
-        'Write the startup messages in a stringbuilder object.
-        'Messages cannot be written using Message.Add until this is set up later in the startup sequence.
-        Dim sb As New System.Text.StringBuilder
-        sb.Append("------------------- Starting Application: ADVL Shares Application ---------------------------------------------------------------- " & vbCrLf)
+        'Loading the Main form.
 
         'Set the Application Directory path: ------------------------------------------------
         Project.ApplicationDir = My.Application.Info.DirectoryPath.ToString
@@ -950,49 +1290,138 @@ Public Class Main
                 ApplicationInfo.UnlockApplication()
             Else
                 Application.Exit()
-                'System.Windows.Forms.Application.Exit()
+                Exit Sub
             End If
         End If
 
         ReadApplicationInfo()
-        ApplicationInfo.LockApplication()
 
         'Read the Application Usage information: --------------------------------------------
         ApplicationUsage.StartTime = Now
         ApplicationUsage.SaveLocn.Type = ADVL_Utilities_Library_1.FileLocation.Types.Directory
         ApplicationUsage.SaveLocn.Path = Project.ApplicationDir
         ApplicationUsage.RestoreUsageInfo()
-        sb.Append("Application usage: Total duration = " & Format(ApplicationUsage.TotalDuration.TotalHours, "#0.##") & " hours" & vbCrLf)
 
         'Restore Project information: -------------------------------------------------------
         Project.ApplicationName = ApplicationInfo.Name
-        Project.ReadLastProjectInfo()
-        Project.ReadProjectInfoFile()
-        Project.Usage.StartTime = Now
 
-        'Project.ReadProjectInfoFile()
-
-        ApplicationInfo.SettingsLocn = Project.SettingsLocn
-
-        'Set up the Message object:
+        'Set up Message object:
         Message.ApplicationName = ApplicationInfo.Name
-        Message.SettingsLocn = Project.SettingsLocn
+
+        'Set up a temporary initial settings location:
+        Dim TempLocn As New ADVL_Utilities_Library_1.FileLocation
+        TempLocn.Type = ADVL_Utilities_Library_1.FileLocation.Types.Directory
+        TempLocn.Path = ApplicationInfo.ApplicationDir
+        Message.SettingsLocn = TempLocn
+
+        Me.Show() 'Show this form before showing the Message form
+
+        'Start showing messages here - Message system is set up.
+        Message.AddText("------------------- Starting Application: ADVL Shares ----------------------------------- " & vbCrLf, "Heading")
+        Message.AddText("Application usage: Total duration = " & ApplicationUsage.TotalDuration.TotalHours & " hours" & vbCrLf, "Normal")
+
+        'https://msdn.microsoft.com/en-us/library/z2d603cy(v=vs.80).aspx#Y550
+        'Process any command line arguments:
+        Try
+            For Each s As String In My.Application.CommandLineArgs
+                Message.Add("Command line argument: " & vbCrLf)
+                Message.AddXml(s & vbCrLf & vbCrLf)
+                InstrReceived = s
+            Next
+        Catch ex As Exception
+            Message.AddWarning("Error processing command line arguments: " & ex.Message & vbCrLf)
+        End Try
+
+        If ProjectSelected = False Then
+            'Read the Settings Location for the last project used:
+            Project.ReadLastProjectInfo()
+            'The Last_Project_Info.xml file contains:
+            '  Project Name and Description. Settings Location Type and Settings Location Path.
+            Message.Add("Last project info has been read." & vbCrLf)
+            Message.Add("Project.Type.ToString  " & Project.Type.ToString & vbCrLf)
+            Message.Add("Project.Path  " & Project.Path & vbCrLf)
+
+            'At this point read the application start arguments, if any.
+            'The selected project may be changed here.
+
+            'Check if the project is locked:
+            If Project.ProjectLocked Then
+                Message.AddWarning("The project is locked: " & Project.Name & vbCrLf)
+                Dim dr As System.Windows.Forms.DialogResult
+                dr = MessageBox.Show("Press 'Yes' to unlock the project", "Notice", MessageBoxButtons.YesNo)
+                If dr = System.Windows.Forms.DialogResult.Yes Then
+                    Project.UnlockProject()
+                    Message.AddWarning("The project has been unlocked: " & Project.Name & vbCrLf)
+                    'Read the Project Information file: -------------------------------------------------
+                    Message.Add("Reading project info." & vbCrLf)
+                    Project.ReadProjectInfoFile()   'Read the file in the SettingsLocation: ADVL_Project_Info.xml
+
+                    Project.ReadParameters()
+                    Project.ReadParentParameters()
+                    If Project.ParentParameterExists("AppNetName") Then
+                        Project.AddParameter("AppNetName", Project.ParentParameter("AppNetName").Value, Project.ParentParameter("AppNetName").Description) 'AddParameter will update the parameter if it already exists.
+                        AppNetName = Project.Parameter("AppNetName").Value
+                    Else
+                        AppNetName = Project.GetParameter("AppNetName")
+                    End If
+
+                    Project.LockProject() 'Lock the project while it is open in this application.
+                    'Set the project start time. This is used to track project usage.
+                    Project.Usage.StartTime = Now
+                    ApplicationInfo.SettingsLocn = Project.SettingsLocn
+                    'Set up the Message object:
+                    Message.SettingsLocn = Project.SettingsLocn
+                Else
+                    'Continue without any project selected.
+                    Project.Name = ""
+                    Project.Type = ADVL_Utilities_Library_1.Project.Types.None
+                    Project.Description = ""
+                    Project.SettingsLocn.Path = ""
+                    Project.DataLocn.Path = ""
+                End If
+
+            Else
+                'Read the Project Information file: -------------------------------------------------
+                Message.Add("Reading project info." & vbCrLf)
+                Project.ReadProjectInfoFile()   'Read the file in the SettingsLocation: ADVL_Project_Info.xml
+
+                Project.ReadParameters()
+                Project.ReadParentParameters()
+                If Project.ParentParameterExists("AppNetName") Then
+                    Project.AddParameter("AppNetName", Project.ParentParameter("AppNetName").Value, Project.ParentParameter("AppNetName").Description) 'AddParameter will update the parameter if it already exists.
+                    AppNetName = Project.Parameter("AppNetName").Value
+                Else
+                    AppNetName = Project.GetParameter("AppNetName")
+                End If
+
+                Project.LockProject() 'Lock the project while it is open in this application.
+                'Set the project start time. This is used to track project usage.
+                Project.Usage.StartTime = Now
+                ApplicationInfo.SettingsLocn = Project.SettingsLocn
+                'Set up the Message object:
+                Message.SettingsLocn = Project.SettingsLocn
+            End If
+        Else 'Project has been opened using Command Line arguments.
+
+            Project.ReadParameters()
+            Project.ReadParentParameters()
+            If Project.ParentParameterExists("AppNetName") Then
+                Project.AddParameter("AppNetName", Project.ParentParameter("AppNetName").Value, Project.ParentParameter("AppNetName").Description) 'AddParameter will update the parameter if it already exists.
+                AppNetName = Project.Parameter("AppNetName").Value
+            Else
+                AppNetName = Project.GetParameter("AppNetName")
+            End If
+
+            Project.LockProject() 'Lock the project while it is open in this application.
+            ProjectSelected = False 'Reset the Project Selected flag.
+        End If
+
+        'START Initialise the form: ===============================================================
 
         'Set up Settings Lists:
         FinancialsSettings.FileLocation = Project.DataLocn
         SharePricesSettings.FileLocation = Project.DataLocn
         CalculationsSettings.FileLocation = Project.DataLocn
-
-        'Set up the simple calculations data grid view:
-        'Dim TextBoxCol0 As New DataGridViewTextBoxColumn
-        'dgvCopyData.Columns.Add(TextBoxCol0)
-        'dgvCopyData.Columns(0).HeaderText = "Parameter Name"
-        'dgvCopyData.Columns(0).Width = 160
-
-        'NOTE: Separate tabs now used for fifferent calculation types.
-        'cmbCalcType.Items.Add("Copy columns")
-        'cmbCalcType.Items.Add("Select data")
-        'cmbCalcType.Items.Add("Calculations")
 
         'Initialise Calculations - Copy Data Tab
         cmbCopyDataInputDb.Items.Add("Share Prices")
@@ -1056,9 +1485,6 @@ Public Class Main
         cmbDailyPriceCalcType.Items.Add("Find price level changes") 'To detect share splits and consolidations.
         cmbDailyPriceCalcType.Items.Add("Find price spikes") 'To detect over-bought or over-sold shares.
 
-
-
-
         'Initialise Utilities - Date Calculations Tab:
         txtYear.Text = "2000"
         txtMonth.Text = "1"
@@ -1072,6 +1498,10 @@ Public Class Main
         cmbStartDateNDaysCalc.Items.Add("Date of Start Date - N Days")
         cmbStartDateNDaysCalc.SelectedIndex = 0
 
+        cmbUtilTablesDatabase.Items.Add("Share Prices")
+        cmbUtilTablesDatabase.Items.Add("Financials")
+        cmbUtilTablesDatabase.Items.Add("Calculations")
+        cmbUtilTablesDatabase.SelectedIndex = 0 'Select first item as default
 
 
         'Set up the Simple Calculations tab: -----------------------------------------------
@@ -1083,12 +1513,62 @@ Public Class Main
 
         'Set up context menus:
         txtCopyDataSettings.ContextMenuStrip = ContextMenuStrip1
+        txtSimpleCalcSettings.ContextMenuStrip = ContextMenuStrip1
 
+        'Set up the Charts tab:
+        SetUpChartSharePricesTab()
+        SetUpChartCrossPlotsTab()
+
+        Me.WebBrowser1.ObjectForScripting = Me
+
+        InitialiseForm() 'Initialise the form for a new project.
+
+        'END Initialise the form: ------------------------------------------------------------------------------------
 
         RestoreFormSettings() 'Restore the form settings
         RestoreProjectSettings() 'Restore the Project settings
 
         'Show the project information: ------------------------------------------------------
+        ShowProjectInfo()
+
+        Message.AddText("------------------- Started OK -------------------------------------------------------------------------- " & vbCrLf & vbCrLf, "Heading")
+
+        'Me.Show() 'Show this form before showing the Message form
+
+        If StartupConnectionName = "" Then
+
+            If Project.ConnectOnOpen Then
+                ConnectToComNet() 'The Project is set to connect when it is opened.
+            ElseIf ApplicationInfo.ConnectOnStartup Then
+                ConnectToComNet() 'The Application is set to connect when it is started.
+            Else
+                'Don't connect to ComNet.
+            End If
+
+        Else
+            'Connect to ComNet using the connection name StartupConnectionName.
+            ConnectToComNet(StartupConnectionName)
+        End If
+
+        'Start the timer to keep the connection awake:
+        'Timer3.Interval = 10000 '10 seconds - for testing
+        Timer3.Interval = TimeSpan.FromMinutes(55).TotalMilliseconds '55 minute interval
+        Timer3.Enabled = True
+        Timer3.Start()
+
+    End Sub
+
+    Private Sub InitialiseForm()
+        'Initialise the form for a new project.
+        OpenStartPage()
+    End Sub
+
+    Private Sub ShowProjectInfo()
+        'Show the project information:
+
+        txtParentProject.Text = Project.ParentProjectName
+        txtAppNetName.Text = Project.GetParameter("AppNetName")
+
         txtProjectName.Text = Project.Name
         txtProjectDescription.Text = Project.Description
         Select Case Project.Type
@@ -1103,6 +1583,8 @@ Public Class Main
         End Select
         txtCreationDate.Text = Format(Project.Usage.FirstUsed, "d-MMM-yyyy H:mm:ss")
         txtLastUsed.Text = Format(Project.Usage.LastUsed, "d-MMM-yyyy H:mm:ss")
+        txtProjectPath.Text = Project.Path
+
         Select Case Project.SettingsLocn.Type
             Case ADVL_Utilities_Library_1.FileLocation.Types.Directory
                 txtSettingsLocationType.Text = "Directory"
@@ -1110,6 +1592,7 @@ Public Class Main
                 txtSettingsLocationType.Text = "Archive"
         End Select
         txtSettingsLocationPath.Text = Project.SettingsLocn.Path
+
         Select Case Project.DataLocn.Type
             Case ADVL_Utilities_Library_1.FileLocation.Types.Directory
                 txtDataLocationType.Text = "Directory"
@@ -1118,20 +1601,37 @@ Public Class Main
         End Select
         txtDataLocationPath.Text = Project.DataLocn.Path
 
+        Select Case Project.SystemLocn.Type
+            Case ADVL_Utilities_Library_1.FileLocation.Types.Directory
+                txtSystemLocationType.Text = "Directory"
+            Case ADVL_Utilities_Library_1.FileLocation.Types.Archive
+                txtSystemLocationType.Text = "Archive"
+        End Select
+        txtSystemLocationPath.Text = Project.SystemLocn.Path
 
+        If Project.ConnectOnOpen Then
+            chkConnect.Checked = True
+        Else
+            chkConnect.Checked = False
+        End If
 
-        sb.Append("------------------- Started OK ------------------------------------------------------------------------------------------------------------------------ " & vbCrLf & vbCrLf)
-        Me.Show() 'Show this form before showing the Message form
-        Message.Add(sb.ToString)
+        txtTotalDuration.Text = Project.Usage.TotalDuration.Days.ToString.PadLeft(5, "0"c) & ":" &
+                                Project.Usage.TotalDuration.Hours.ToString.PadLeft(2, "0"c) & ":" &
+                                Project.Usage.TotalDuration.Minutes.ToString.PadLeft(2, "0"c) & ":" &
+                                Project.Usage.TotalDuration.Seconds.ToString.PadLeft(2, "0"c)
+
+        txtCurrentDuration.Text = Project.Usage.CurrentDuration.Days.ToString.PadLeft(5, "0"c) & ":" &
+                                  Project.Usage.CurrentDuration.Hours.ToString.PadLeft(2, "0"c) & ":" &
+                                  Project.Usage.CurrentDuration.Minutes.ToString.PadLeft(2, "0"c) & ":" &
+                                  Project.Usage.CurrentDuration.Seconds.ToString.PadLeft(2, "0"c)
 
     End Sub
 
     Private Sub btnExit_Click(sender As Object, e As EventArgs) Handles btnExit.Click
         'Exit the Application
 
-        DisconnectFromAppNet() 'Disconnect from the Application Network.
+        DisconnectFromComNet() 'Disconnect from the Communication Network.
 
-        'SaveFormSettings() 'Save the settings of this form. 'THESE ARE SAVED WHEN THE FORM_CLOSING EVENT TRIGGERS.
         SaveProjectSettings() 'Save project settings.
 
         'Save the settings file used to for data views:
@@ -1143,10 +1643,13 @@ Public Class Main
         ApplicationInfo.UnlockApplication()
 
         Project.SaveLastProjectInfo() 'Save information about the last project used.
+        Project.SaveParameters()
 
         'Project.SaveProjectInfoFile() 'Update the Project Information file. This is not required unless there is a change made to the project.
 
         Project.Usage.SaveUsageInfo() 'Save Project usage information.
+
+        Project.UnlockProject() 'Unlock the project.
 
         ApplicationUsage.SaveUsageInfo() 'Save Application usage information.
 
@@ -1173,25 +1676,7 @@ Public Class Main
         Message.MessageForm.BringToFront()
     End Sub
 
-    'THIS CODE IS USED IF A SINGLE SHARE PRICES FORM IS TO BE SHOWN:
-    'Private Sub btnViewSharePrices_Click(sender As Object, e As EventArgs) Handles btnViewSharePrices.Click
-    '    'Open the Share Prices form:
-    '    If IsNothing(SharePrices) Then
-    '        SharePrices = New frmSharePrices
-    '        SharePrices.Show()
-    '    Else
-    '        SharePrices.Show()
-    '    End If
-    '    SharePrices.DatabasePath = SharePriceDbPath
-    '    SharePrices.FillCmbSelectTable()
-    'End Sub
-
-    'THIS CODE IS USED IF A SINGLE SHARE PRICES FORM IS TO BE SHOWN:
-    'Private Sub SharePrices_FormClosed(sender As Object, e As FormClosedEventArgs) Handles SharePrices.FormClosed
-    '    SharePrices = Nothing
-    'End Sub
-
-    'THIS CODE IS USED IF MULTIPLE SHARE PRICES FORMA ARE TO BE SHOWN:
+    'THIS CODE IS USED IF MULTIPLE SHARE PRICES FORMS ARE TO BE SHOWN:
     Private Sub btnViewSharePrices_Click(sender As Object, e As EventArgs) Handles btnViewSharePrices.Click
         'Open a form to view share price data.
 
@@ -1203,15 +1688,14 @@ Public Class Main
         Else  'Open a new share prices form:
             OpenNewSharePricesForm()
         End If
-
     End Sub
 
     Private Sub OpenSharePricesFormNo(ByVal Index As Integer)
         'Open the Share Prices form with specified Index number.
 
-        If SharePricesFormList.Count < Index + 1 Then
+        If SharePricesFormList.Count <Index + 1 Then
             'Insert null entries into SharePricesList then add a new form at the specified index position:
-            Dim I As Integer
+        Dim I As Integer
             For I = SharePricesFormList.Count To Index
                 SharePricesFormList.Add(Nothing)
             Next
@@ -1219,7 +1703,6 @@ Public Class Main
             SharePricesFormList(Index) = SharePrices
             SharePricesFormList(Index).FormNo = Index
             SharePricesFormList(Index).Show
-            'ElseIf SharePricesList(Index) = Nothing Then
         ElseIf IsNothing(SharePricesFormList(Index)) Then
             'Add the new form at specified index position:
             SharePrices = New frmSharePrices
@@ -1239,6 +1722,8 @@ Public Class Main
             SharePricesFormList.Add(SharePrices)
             SharePricesFormList(0).FormNo = 0
             SharePricesFormList(0).Show()
+            SharePricesFormList(0).DataSummary = "New Share Price Data View"
+            SharePricesFormList(0).Version = "Version 1"
         Else
             Dim I As Integer
             Dim FormAdded As Boolean = False
@@ -1247,6 +1732,8 @@ Public Class Main
                     SharePricesFormList(I) = SharePrices
                     SharePricesFormList(I).FormNo = I
                     SharePricesFormList(I).Show()
+                    SharePricesFormList(I).DataSummary = "New Share Price Data View"
+                    SharePricesFormList(I).Version = "Version 1"
                     FormAdded = True
                     Exit For
                 End If
@@ -1257,11 +1744,13 @@ Public Class Main
                 FormNo = SharePricesFormList.Count - 1
                 SharePricesFormList(FormNo).FormNo = FormNo
                 SharePricesFormList(FormNo).Show()
+                SharePricesFormList(FormNo).DataSummary = "New Share Price Data View"
+                SharePricesFormList(FormNo).Version = "Version 1"
             End If
         End If
     End Sub
 
-    'THIS CODE IS USED IF MULTIPLE SHARE PRICES FORMA ARE TO BE SHOWN:
+    'THIS CODE IS USED IF MULTIPLE SHARE PRICES FORMS ARE TO BE SHOWN:
     Public Sub SharePricesFormClosed()
         'This subroutine is called when the SharePrices form has been closed.
         'The subroutine is usually called from the FormClosed event of the SharePrices form.
@@ -1270,7 +1759,7 @@ Public Class Main
         'This property should be updated by the SharePrices form when it is being closed.
         'The ClosedFormNumber property value is used to determine which element in SharePricesList should be set to Nothing.
 
-        'ERROR: When application is closed with SharePricesList forms open: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        'ERROR: When application is closed with SharePricesList forms open: !
         'An unhandled exception of type 'System.ArgumentOutOfRangeException' occurred in mscorlib.dll
         'Additional Information: Index was out of range. Must be non-negative And less than the size of the collection.
         If SharePricesFormList.Count < ClosedFormNo + 1 Then
@@ -1293,7 +1782,7 @@ Public Class Main
             For Each item In lstFinancials.SelectedIndices
                 OpenFinancialsFormNo(item)
             Next
-        Else  'Open a new share prices form:
+        Else  'Open a new Financials form:
             OpenNewFinancialsForm()
         End If
     End Sub
@@ -1307,16 +1796,13 @@ Public Class Main
             For I = FinancialsFormList.Count To Index
                 FinancialsFormList.Add(Nothing)
             Next
-            'Financials = New frmFinancials
-            'FinancialsList(Index) = Financials
+
             FinancialsFormList(Index) = New frmFinancials
             FinancialsFormList(Index).FormNo = Index
             FinancialsFormList(Index).Show
-            'ElseIf FinancialsList(Index) = Nothing Then
+
         ElseIf IsNothing(FinancialsFormList(Index)) Then
             'Add the new form at specified index position:
-            'Financials = New frmFinancials
-            'FinancialsList(Index) = Financials
             FinancialsFormList(Index) = New frmFinancials
             FinancialsFormList(Index).FormNo = Index
             FinancialsFormList(Index).Show()
@@ -1333,6 +1819,8 @@ Public Class Main
             FinancialsFormList.Add(Financials)
             FinancialsFormList(0).FormNo = 0
             FinancialsFormList(0).Show()
+            FinancialsFormList(0).DataSummary = "New Financials Data View"
+            FinancialsFormList(0).Version = "Version 1"
         Else
             Dim I As Integer
             Dim FormAdded As Boolean = False
@@ -1341,6 +1829,8 @@ Public Class Main
                     FinancialsFormList(I) = Financials
                     FinancialsFormList(I).FormNo = I
                     FinancialsFormList(I).Show()
+                    FinancialsFormList(I).DataSummary = "New Financials Data View"
+                    FinancialsFormList(I).Version = "Version 1"
                     FormAdded = True
                     Exit For
                 End If
@@ -1351,6 +1841,8 @@ Public Class Main
                 FormNo = FinancialsFormList.Count - 1
                 FinancialsFormList(FormNo).FormNo = FormNo
                 FinancialsFormList(FormNo).Show()
+                FinancialsFormList(FormNo).DataSummary = "New Financials Data View"
+                FinancialsFormList(FormNo).Version = "Version 1"
             End If
         End If
     End Sub
@@ -1418,6 +1910,8 @@ Public Class Main
             CalculationsFormList.Add(Calculations)
             CalculationsFormList(0).FormNo = 0
             CalculationsFormList(0).Show()
+            CalculationsFormList(0).DataSummary = "New Calculations Data View"
+            CalculationsFormList(0).Version = "Version 1"
         Else
             Dim I As Integer
             Dim FormAdded As Boolean = False
@@ -1426,6 +1920,8 @@ Public Class Main
                     CalculationsFormList(I) = Calculations
                     CalculationsFormList(I).FormNo = I
                     CalculationsFormList(I).Show()
+                    CalculationsFormList(I).DataSummary = "New Calculations Data View"
+                    CalculationsFormList(I).Version = "Version 1"
                     FormAdded = True
                     Exit For
                 End If
@@ -1436,6 +1932,8 @@ Public Class Main
                 FormNo = CalculationsFormList.Count - 1
                 CalculationsFormList(FormNo).FormNo = FormNo
                 CalculationsFormList(FormNo).Show()
+                CalculationsFormList(FormNo).DataSummary = "New Calculations Data View"
+                CalculationsFormList(FormNo).Version = "Version 1"
             End If
         End If
     End Sub
@@ -1474,6 +1972,143 @@ Public Class Main
         Sequence = Nothing
     End Sub
 
+    Private Sub btnSPChartCompList_Click(sender As Object, e As EventArgs) Handles btnSPChartCompList.Click
+        'Show the Company List form:
+        If IsNothing(CompanyList) Then
+            CompanyList = New frmCompanyList
+            CompanyList.Show()
+        Else
+            CompanyList.Show()
+        End If
+    End Sub
+
+    Private Sub CompanyList_FormClosed(sender As Object, e As FormClosedEventArgs) Handles CompanyList.FormClosed
+        CompanyList = Nothing
+    End Sub
+
+    Private Sub btnDesignPointChartQuery_Click(sender As Object, e As EventArgs) Handles btnDesignPointChartQuery.Click
+        'Open the Design Query form:
+
+        If IsNothing(DesignPointChartQuery) Then
+            DesignPointChartQuery = New frmDesignQuery
+            DesignPointChartQuery.Text = "Design Cross Plot Chart Data Query"
+            DesignPointChartQuery.Show()
+            DesignPointChartQuery.DatabasePath = txtPointChartDbPath.Text
+        Else
+            DesignPointChartQuery.Show()
+        End If
+    End Sub
+
+    Private Sub DesignPointChartQuery_FormClosed(sender As Object, e As FormClosedEventArgs) Handles DesignPointChartQuery.FormClosed
+        DesignPointChartQuery = Nothing
+    End Sub
+
+    Private Sub btnWebPages_Click(sender As Object, e As EventArgs) Handles btnWebPages.Click
+        'Open the Web Pages form.
+
+        If IsNothing(WebPageList) Then
+            WebPageList = New frmWebPageList
+            WebPageList.Show()
+        Else
+            WebPageList.Show()
+            WebPageList.BringToFront()
+        End If
+    End Sub
+
+    Private Sub WebPageList_FormClosed(sender As Object, e As FormClosedEventArgs) Handles WebPageList.FormClosed
+        WebPageList = Nothing
+    End Sub
+
+    Public Function OpenNewWebPage() As Integer
+        'Open a new HTML Web View window, or reuse an existing one if avaiable.
+        'The new forms index number in WebViewFormList is returned.
+
+        NewWebPage = New frmWebPage
+        If WebPageFormList.Count = 0 Then
+            WebPageFormList.Add(NewWebPage)
+            WebPageFormList(0).FormNo = 0
+            WebPageFormList(0).Show
+            Return 0 'The new HTML Display is at position 0 in WebViewFormList()
+        Else
+            Dim I As Integer
+            Dim FormAdded As Boolean = False
+            For I = 0 To WebPageFormList.Count - 1 'Check if there are closed forms in WebViewFormList. They can be re-used.
+                If IsNothing(WebPageFormList(I)) Then
+                    WebPageFormList(I) = NewWebPage
+                    WebPageFormList(I).FormNo = I
+                    WebPageFormList(I).Show
+                    FormAdded = True
+                    Return I 'The new Html Display is at position I in WebViewFormList()
+                    Exit For
+                End If
+            Next
+            If FormAdded = False Then 'Add a new form to WebViewFormList
+                Dim FormNo As Integer
+                WebPageFormList.Add(NewWebPage)
+                FormNo = WebPageFormList.Count - 1
+                WebPageFormList(FormNo).FormNo = FormNo
+                WebPageFormList(FormNo).Show
+                Return FormNo 'The new WebPage is at position FormNo in WebPageFormList()
+            End If
+
+        End If
+    End Function
+
+    Public Sub WebPageFormClosed()
+        'This subroutine is called when the Web Page form has been closed.
+        'The subroutine is usually called from the FormClosed event of the WebPage form.
+        'The WebPage form may have multiple instances.
+        'The ClosedFormNumber property should contains the number of the instance of the WebPage form.
+        'This property should be updated by the WebPage form when it is being closed.
+        'The ClosedFormNumber property value is used to determine which element in WebPageList should be set to Nothing.
+
+        If WebPageFormList.Count < ClosedFormNo + 1 Then
+            'ClosedFormNo is too large to exist in WebPageFormList
+            Exit Sub
+        End If
+
+        If IsNothing(WebPageFormList(ClosedFormNo)) Then
+            'The form is already set to nothing
+        Else
+            WebPageFormList(ClosedFormNo) = Nothing
+        End If
+    End Sub
+
+    Public Function OpenNewHtmlDisplayPage() As Integer
+        'Open a new HTML display window, or reuse an existing one if avaiable.
+        'The new forms index number in HtmlDisplayFormList is returned.
+
+        NewHtmlDisplay = New frmHtmlDisplay
+        If HtmlDisplayFormList.Count = 0 Then
+            HtmlDisplayFormList.Add(NewHtmlDisplay)
+            HtmlDisplayFormList(0).FormNo = 0
+            HtmlDisplayFormList(0).Show
+            Return 0 'The new HTML Display is at position 0 in HtmlDisplayFormList()
+        Else
+            Dim I As Integer
+            Dim FormAdded As Boolean = False
+            For I = 0 To HtmlDisplayFormList.Count - 1 'Check if there are closed forms in HtmlDisplayFormList. They can be re-used.
+                If IsNothing(HtmlDisplayFormList(I)) Then
+                    HtmlDisplayFormList(I) = NewHtmlDisplay
+                    HtmlDisplayFormList(I).FormNo = I
+                    HtmlDisplayFormList(I).Show
+                    FormAdded = True
+                    Return I 'The new Html Display is at position I in HtmlDisplayFormList()
+                    Exit For
+                End If
+            Next
+            If FormAdded = False Then 'Add a new form to HtmlDisplayFormList
+                Dim FormNo As Integer
+                HtmlDisplayFormList.Add(NewHtmlDisplay)
+                FormNo = HtmlDisplayFormList.Count - 1
+                HtmlDisplayFormList(FormNo).FormNo = FormNo
+                HtmlDisplayFormList(FormNo).Show
+                Return FormNo 'The new HtmlDisplay is at position FormNo in HtmlDisplayFormList()
+            End If
+
+        End If
+
+    End Function
 
 #End Region 'Open and Close Forms -------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -1481,6 +2116,38 @@ Public Class Main
 
     Private Sub btnProject_Click(sender As Object, e As EventArgs) Handles btnProject.Click
         Project.SelectProject()
+    End Sub
+
+    Private Sub btnParameters_Click(sender As Object, e As EventArgs) Handles btnParameters.Click
+        Project.ShowParameters()
+    End Sub
+
+    Private Sub TabPage1_Enter(sender As Object, e As EventArgs) Handles TabPage1.Enter
+        'This tab page shows the project information.
+        'The current project duration is updated when the page is entered.
+        'Timer2 is also set so the duration is updated every 5 seconds.
+
+        txtCurrentDuration.Text = Project.Usage.CurrentDuration.Days.ToString.PadLeft(5, "0"c) & ":" &
+                                  Project.Usage.CurrentDuration.Hours.ToString.PadLeft(2, "0"c) & ":" &
+                                  Project.Usage.CurrentDuration.Minutes.ToString.PadLeft(2, "0"c) & ":" &
+                                  Project.Usage.CurrentDuration.Seconds.ToString.PadLeft(2, "0"c)
+
+        Timer2.Interval = 5000 '5 seconds
+        Timer2.Enabled = True
+        Timer2.Start()
+    End Sub
+
+    Private Sub Timer2_Tick(sender As Object, e As EventArgs) Handles Timer2.Tick
+        'Update the current duration:
+
+        txtCurrentDuration.Text = Project.Usage.CurrentDuration.Days.ToString.PadLeft(5, "0"c) & ":" &
+                           Project.Usage.CurrentDuration.Hours.ToString.PadLeft(2, "0"c) & ":" &
+                           Project.Usage.CurrentDuration.Minutes.ToString.PadLeft(2, "0"c) & ":" &
+                           Project.Usage.CurrentDuration.Seconds.ToString.PadLeft(2, "0"c)
+    End Sub
+
+    Private Sub TabPage1_Leave(sender As Object, e As EventArgs) Handles TabPage1.Leave
+        Timer2.Enabled = False
     End Sub
 
     Private Sub btnAppInfo_Click(sender As Object, e As EventArgs) Handles btnAppInfo.Click
@@ -1491,6 +2158,497 @@ Public Class Main
         ApplicationInfo.ShowInfo()
     End Sub
 
+    Private Sub btnOpenProject_Click(sender As Object, e As EventArgs) Handles btnOpenProject.Click
+        If Project.Type = ADVL_Utilities_Library_1.Project.Types.Archive Then
+
+        Else
+            Process.Start(Project.Path)
+        End If
+    End Sub
+
+    Private Sub btnOpenSettings_Click(sender As Object, e As EventArgs) Handles btnOpenSettings.Click
+        If Project.SettingsLocn.Type = ADVL_Utilities_Library_1.FileLocation.Types.Directory Then
+            Process.Start(Project.SettingsLocn.Path)
+        End If
+    End Sub
+
+    Private Sub btnOpenData_Click(sender As Object, e As EventArgs) Handles btnOpenData.Click
+        If Project.DataLocn.Type = ADVL_Utilities_Library_1.FileLocation.Types.Directory Then
+            Process.Start(Project.DataLocn.Path)
+        End If
+    End Sub
+
+    Private Sub btnOpenSystem_Click(sender As Object, e As EventArgs) Handles btnOpenSystem.Click
+        If Project.SystemLocn.Type = ADVL_Utilities_Library_1.FileLocation.Types.Directory Then
+            Process.Start(Project.SystemLocn.Path)
+        End If
+    End Sub
+
+    Private Sub btnOpenAppDir_Click(sender As Object, e As EventArgs) Handles btnOpenAppDir.Click
+        Process.Start(ApplicationInfo.ApplicationDir)
+    End Sub
+
+    Private Sub DeleteSettingsFileToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles DeleteSettingsFileToolStripMenuItem.Click
+        'Delete the Settings File corresponding to the text box clicked.
+        'Right-click in the Settings File text box (eg in the Copy Data tab) and select Delete Settings File to delete the file.
+        '  This is used to delete settings files that are no longer needed.
+
+        Message.Add("ContextMenuStrip1.SourceControl.Name = " & ContextMenuStrip1.SourceControl.Name & vbCrLf)
+
+        Select Case ContextMenuStrip1.SourceControl.Name
+            Case "txtCopyDataSettings" 'Delete the selected Copy Data settings file.
+                Project.DeleteData(txtCopyDataSettings.Text)
+                CopyDataSettingsFile = ""
+                txtCopyDataSettings.Text = ""
+                cmbCopyDataInputData.SelectedIndex = 0
+                cmbCopyDataOutputData.SelectedIndex = 0
+                dgvCopyData.Rows.Clear()
+
+            Case "txtSimpleCalcSettings" 'Delete the selected Simple Calculations settings file.
+                Project.DeleteData(txtSimpleCalcSettings.Text)
+                SimpleCalcsSettingsFile = ""
+                txtSimpleCalcSettings.Text = ""
+                cmbSimpleCalcData.SelectedIndex = 0
+                dgvSimpleCalcsParameterList.Rows.Clear()
+                dgvSimpleCalcsCalculations.Rows.Clear()
+                dgvSimpleCalcsInputData.Rows.Clear()
+                dgvSimpleCalcsOutputData.Rows.Clear()
+        End Select
+
+    End Sub
+
+    Public Sub UpdateWebPage(ByVal FileName As String)
+        'Update the web page in WebPageFormList if the Web file name is FileName.
+
+        Dim NPages As Integer = WebPageFormList.Count
+        Dim I As Integer
+
+        For I = 0 To NPages - 1
+            If WebPageFormList(I) Is Nothing Then
+                'Message.Add("Web page not displayed." & vbCrLf)
+            Else
+                If WebPageFormList(I).FileName = FileName Then
+                    WebPageFormList(I).OpenDocument
+                End If
+            End If
+        Next
+    End Sub
+
+
+#Region " Start Page Code" '=========================================================================================================================================
+
+    Public Sub OpenStartPage()
+        'Open the StartPage.html file and display in the Start Page tab.
+
+        If Project.DataFileExists("StartPage.html") Then
+            StartPageFileName = "StartPage.html"
+            DisplayStartPage()
+        Else
+            CreateStartPage()
+            StartPageFileName = "StartPage.html"
+            DisplayStartPage()
+        End If
+
+    End Sub
+
+    Public Sub DisplayStartPage()
+        'Display the StartPage.html file in the Start Page tab.
+
+        If Project.DataFileExists(StartPageFileName) Then
+            Dim rtbData As New IO.MemoryStream
+            Project.ReadData(StartPageFileName, rtbData)
+            rtbData.Position = 0
+            Dim sr As New IO.StreamReader(rtbData)
+            WebBrowser1.DocumentText = sr.ReadToEnd()
+        Else
+            Message.AddWarning("Web page file not found: " & StartPageFileName & vbCrLf)
+        End If
+    End Sub
+
+    Private Sub CreateStartPage()
+        'Create a new default StartPage.html file.
+
+        Dim htmData As New IO.MemoryStream
+        Dim sw As New IO.StreamWriter(htmData)
+        sw.Write(AppInfoHtmlString("Application Information")) 'Create a web page providing information about the application.
+        sw.Flush()
+        Project.SaveData("StartPage.html", htmData)
+    End Sub
+
+    Public Function AppInfoHtmlString(ByVal DocumentTitle As String) As String
+        'Create an Application Information Web Page.
+
+        'This function should be edited to provide a brief description of the Application.
+
+        Dim sb As New System.Text.StringBuilder
+
+        sb.Append("<!DOCTYPE html>" & vbCrLf)
+        sb.Append("<html>" & vbCrLf)
+        sb.Append("<head>" & vbCrLf)
+        sb.Append("<title>" & DocumentTitle & "</title>" & vbCrLf)
+        sb.Append("</head>" & vbCrLf)
+
+        sb.Append("<body style=""font-family:arial;"">" & vbCrLf & vbCrLf)
+
+        sb.Append("<h2>" & "Andorville&trade; Shares Application" & "</h2>" & vbCrLf & vbCrLf) 'Add the page title.
+        sb.Append("<hr>" & vbCrLf) 'Add a horizontal divider line.
+        sb.Append("<p>The Shares application stores historical data for publicly traded shares and applies data processing and analysis techniques aimed at optimizing share trading returns.</p>" & vbCrLf) 'Add an application description.
+        sb.Append("<hr>" & vbCrLf & vbCrLf) 'Add a horizontal divider line.
+
+        sb.Append(DefaultJavaScriptString)
+
+        sb.Append("</body>" & vbCrLf)
+        sb.Append("</html>" & vbCrLf)
+
+        Return sb.ToString
+
+    End Function
+
+    Public Function DefaultJavaScriptString() As String
+        'Generate the default JavaScript section of an Andorville(TM) Workflow Web Page.
+
+        Dim sb As New System.Text.StringBuilder
+
+        'Add JavaScript section:
+        sb.Append("<script>" & vbCrLf & vbCrLf)
+
+        'START: User defined JavaScript functions ==========================================================================
+        'Add functions to implement the main actions performed by this web page.
+        sb.Append("//START: User defined JavaScript functions ==========================================================================" & vbCrLf)
+        sb.Append("//  Add functions to implement the main actions performed by this web page." & vbCrLf & vbCrLf)
+
+        sb.Append("//END:   User defined JavaScript functions __________________________________________________________________________" & vbCrLf & vbCrLf & vbCrLf)
+        'END:   User defined JavaScript functions --------------------------------------------------------------------------
+
+
+        'START: User modified JavaScript functions ==========================================================================
+        'Modify these function to save all required web page settings and process all expected XMessage instructions.
+        sb.Append("//START: User modified JavaScript functions ==========================================================================" & vbCrLf)
+        sb.Append("//  Modify these function to save all required web page settings and process all expected XMessage instructions." & vbCrLf & vbCrLf)
+
+        'Add the SaveSettings function - This is used to save web page settings between sessions.
+        sb.Append("//Save the web page settings." & vbCrLf)
+        sb.Append("function SaveSettings() {" & vbCrLf)
+        sb.Append("  var xSettings = ""<Settings>"" + "" \n"" ; //String containing the web page settings in XML format." & vbCrLf)
+        sb.Append("  //Add xml lines to save each setting." & vbCrLf & vbCrLf)
+        sb.Append("  xSettings +=    ""</Settings>"" + ""\n"" ; //End of the Settings element." & vbCrLf)
+        sb.Append(vbCrLf)
+        sb.Append("  //Save the settings as an XML file in the project." & vbCrLf)
+        sb.Append("  window.external.SaveHtmlSettings(xSettings) ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Process a single XMsg instruction (Information:Location pair)
+        sb.Append("//Process an XMessage instruction:" & vbCrLf)
+        sb.Append("function XMsgInstruction(Info, Locn) {" & vbCrLf)
+        sb.Append("  switch(Locn) {" & vbCrLf)
+        sb.Append("  //Insert case statements here." & vbCrLf)
+        sb.Append("  default:" & vbCrLf)
+        sb.Append("    window.external.AddWarning(""Unknown location: "" + Locn + ""\r\n"") ;" & vbCrLf)
+        sb.Append("  }" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        sb.Append("//END:   User modified JavaScript functions __________________________________________________________________________" & vbCrLf & vbCrLf & vbCrLf)
+        'END:   User modified JavaScript functions --------------------------------------------------------------------------
+
+        'START: Required Document Library Web Page JavaScript functions ==========================================================================
+        sb.Append("//START: Required Document Library Web Page JavaScript functions ==========================================================================" & vbCrLf & vbCrLf)
+
+        'Add the AddText function - This sends a message to the message window using a named text type.
+        sb.Append("//Add text to the Message window using a named txt type:" & vbCrLf)
+        sb.Append("function AddText(Msg, TextType) {" & vbCrLf)
+        sb.Append("  window.external.AddText(Msg, TextType) ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Add the AddMessage function - This sends a message to the message window using default black text.
+        sb.Append("//Add a message to the Message window using the default black text:" & vbCrLf)
+        sb.Append("function AddMessage(Msg) {" & vbCrLf)
+        sb.Append("  window.external.AddMessage(Msg) ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Add the AddWarning function - This sends a red, bold warning message to the message window.
+        sb.Append("//Add a warning message to the Message window using bold red text:" & vbCrLf)
+        sb.Append("function AddWarning(Msg) {" & vbCrLf)
+        sb.Append("  window.external.AddWarning(Msg) ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Add the RestoreSettings function - This is used to restore web page settings.
+        sb.Append("//Restore the web page settings." & vbCrLf)
+        sb.Append("function RestoreSettings() {" & vbCrLf)
+        sb.Append("  window.external.RestoreHtmlSettings() " & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'This line runs the RestoreSettings function when the web page is loaded.
+        sb.Append("//Restore the web page settings when the page loads." & vbCrLf)
+        sb.Append("window.onload = RestoreSettings; " & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Restores a single setting on the web page.
+        sb.Append("//Restore a web page setting." & vbCrLf)
+        sb.Append("  function RestoreSetting(FormName, ItemName, ItemValue) {" & vbCrLf)
+        sb.Append("  document.forms[FormName][ItemName].value = ItemValue ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        'Add the RestoreOption function - This is used to add an option to a Select list.
+        sb.Append("//Restore a Select control Option." & vbCrLf)
+        sb.Append("function RestoreOption(SelectId, OptionText) {" & vbCrLf)
+        sb.Append("  var x = document.getElementById(SelectId) ;" & vbCrLf)
+        sb.Append("  var option = document.createElement(""Option"") ;" & vbCrLf)
+        sb.Append("  option.text = OptionText ;" & vbCrLf)
+        sb.Append("  x.add(option) ;" & vbCrLf)
+        sb.Append("}" & vbCrLf)
+        sb.Append(vbCrLf)
+
+        sb.Append("//END:   Required Document Library Web Page JavaScript functions __________________________________________________________________________" & vbCrLf & vbCrLf)
+        'END:   Required Document Library Web Page JavaScript functions --------------------------------------------------------------------------
+
+        sb.Append("</script>" & vbCrLf & vbCrLf)
+
+        Return sb.ToString
+
+    End Function
+
+
+    Public Function DefaultHtmlString(ByVal DocumentTitle As String) As String
+        'Create a blank HTML Web Page.
+
+        Dim sb As New System.Text.StringBuilder
+
+        sb.Append("<!DOCTYPE html>" & vbCrLf)
+        sb.Append("<html>" & vbCrLf)
+        sb.Append("<head>" & vbCrLf)
+        sb.Append("<title>" & DocumentTitle & "</title>" & vbCrLf)
+        sb.Append("</head>" & vbCrLf)
+
+        sb.Append("<body style=""font-family:arial;"">" & vbCrLf & vbCrLf)
+
+        sb.Append("<h1>" & DocumentTitle & "</h1>" & vbCrLf & vbCrLf)
+
+        sb.Append(DefaultJavaScriptString)
+
+        sb.Append("</body>" & vbCrLf)
+        sb.Append("</html>" & vbCrLf)
+
+        Return sb.ToString
+
+    End Function
+
+#End Region 'Start Page Code ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+#Region " Methods Called by JavaScript - A collection of methods that can be called by JavaScript in a web page shown in WebBrowser1" '========================================================
+    'These methods are used to display HTML pages in the Document tab.
+    'The same methods can be found in the WebView form, which displays web pages on seprate forms.
+    'NOTE: ANY NEW METHODS SHOULD ALSO BE ADDED TO THE WebView FORM CODE!
+
+    Public Sub JSMethodTest1()
+        'Test method that is called from JavaScript.
+        Message.Add("JSMethodTest1 called OK." & vbCrLf)
+    End Sub
+
+    Public Sub JSMethodTest2(ByVal Var1 As String, ByVal Var2 As String)
+        'Test method that is called from JavaScript.
+        Message.Add("Var1 = " & Var1 & " Var2 = " & Var2 & vbCrLf)
+    End Sub
+
+    Public Sub JSDisplayXml(ByRef XDoc As XDocument)
+        Message.Add(XDoc.ToString & vbCrLf & vbCrLf)
+    End Sub
+
+    'Show a message in the application message window. USE LATER VERSION BELOW?
+    Public Sub ShowMessage(ByVal Msg As String)
+        Message.Add(Msg)
+    End Sub
+
+    Public Sub SaveHtmlSettings(ByVal xSettings As String, ByVal FileName As String)
+        'Save the Html settings for a web page.
+
+        'Convert the XSettings to XML format:
+
+        Dim XmlHeader As String = "<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>"
+
+        Dim XDocSettings As New System.Xml.Linq.XDocument
+
+        Try
+            XDocSettings = System.Xml.Linq.XDocument.Parse(XmlHeader & vbCrLf & xSettings)
+        Catch ex As Exception
+            Message.AddWarning("Error saving HTML settings file. " & ex.Message & vbCrLf)
+        End Try
+
+        Project.SaveXmlData(FileName, XDocSettings)
+
+    End Sub
+
+
+    Public Sub RestoreHtmlSettings()
+        'Restore the Html settings for a web page.
+
+        Dim SettingsFileName As String = StartPageFileName & "Settings"
+
+        Dim XDocSettings As New System.Xml.Linq.XDocument
+        Project.ReadXmlData(SettingsFileName, XDocSettings)
+
+        If XDocSettings Is Nothing Then
+            'Message.Add("No HTML Settings file : " & SettingsFileName & vbCrLf)
+        Else
+            Dim XSettings As New System.Xml.XmlDocument
+            Try
+                XSettings.LoadXml(XDocSettings.ToString)
+                'Run the Settings file:
+                WebXSeq.RunXSequence(XSettings, Status)
+            Catch ex As Exception
+                Message.AddWarning("Error restoring HTML settings. " & ex.Message & vbCrLf)
+            End Try
+        End If
+    End Sub
+
+    Private Sub WebXSeq_ErrorMsg(ErrMsg As String) Handles WebXSeq.ErrorMsg
+        Message.AddWarning(ErrMsg & vbCrLf)
+    End Sub
+
+
+    Private Sub WebXSeq_Instruction(Info As String, Locn As String) Handles WebXSeq.Instruction
+        'Execute each instruction produced by running the XSeq file.
+
+        Select Case Locn
+            Case "Settings:Form:Name"
+                FormName = Info
+
+            Case "Settings:Form:Item:Name"
+                ItemName = Info
+
+            Case "Settings:Form:Item:Value"
+                RestoreSetting(FormName, ItemName, Info)
+
+            Case "Settings:Form:SelectId"
+                SelectId = Info
+
+            Case "Settings:Form:OptionText"
+                RestoreOption(SelectId, Info)
+
+
+            Case "Settings"
+
+            Case "EndOfSequence"
+                'Main.Message.Add("End of processing sequence" & Info & vbCrLf)
+
+            Case Else
+                Message.AddWarning("Unknown location: " & Locn & "  Info: " & Info & vbCrLf)
+
+        End Select
+    End Sub
+
+
+    Public Sub RestoreSetting(ByVal FormName As String, ByVal ItemName As String, ByVal ItemValue As String)
+        'Restore the setting value with the specified Form Name and Item Name.
+
+        Me.WebBrowser1.Document.InvokeScript("RestoreSetting", New String() {FormName, ItemName, ItemValue})
+
+    End Sub
+
+    Public Sub RestoreOption(ByVal SelectId As String, ByVal OptionText As String)
+        'Restore the Option text in the Select control with the Id SelectId.
+
+        Me.WebBrowser1.Document.InvokeScript("RestoreOption", New String() {SelectId, OptionText})
+    End Sub
+
+    Private Sub SaveWebPageSettings()
+        'Call the SaveSettings JavaScript function:
+        Try
+            Me.WebBrowser1.Document.InvokeScript("SaveSettings")
+        Catch ex As Exception
+            Message.AddWarning("Web page settings not saved: " & ex.Message & vbCrLf)
+        End Try
+
+    End Sub
+
+    Public Function GetFormNo() As String
+        'Return FormNo.ToString
+        Return "-1"
+    End Function
+
+    'Add text to the application message window with the specified text type.
+    Public Sub AddText(ByVal Msg As String, ByVal TextType As String)
+        Message.AddText(Msg, TextType)
+    End Sub
+
+    Public Sub AddMessage(ByVal Msg As String)
+        Message.Add(Msg)
+    End Sub
+
+    Public Sub AddWarning(ByVal Msg As String)
+        Message.AddWarning(Msg)
+    End Sub
+
+
+    Public Sub SendXMessage(ByVal ConnName As String, ByVal XMsg As String)
+        'Send the XMessage to the application with the connection name ConnName.
+
+    End Sub
+
+    Public Sub RunXSequence(ByVal XSequence As String)
+        'Run the XMSequence
+        Dim XmlSeq As New System.Xml.XmlDocument
+        XmlSeq.LoadXml(XSequence)
+        XSeq.RunXSequence(XmlSeq, Status)
+
+    End Sub
+
+    Public Sub OpenWebPage(ByVal WebPageFileName As String)
+        'Open a Web Page from the WebPageFileName.
+        '  Pass the ParentName Property to the new web page. The is the name of this web page that is opening the new page.
+        '  Pass the ParentWebPageFormNo Property to the new web page. This is the FormNo of this web page that is opening the new page.
+        '    A hash code is generated from the ParentName. This is used to define a file name to save and restore the Web Page settings.
+        '    The new web page can pass instructions back to the ParentWebPage using its ParentWebPageFormNo.
+
+        Dim NewFormNo As Integer = OpenNewWebPage()
+
+        WebPageFormList(NewFormNo).ParentWebPageFileName = StartPageFileName 'Set the Parent Web Page property.
+        WebPageFormList(NewFormNo).ParentWebPageFormNo = -1 'Set the Parent Form Number property.
+        WebPageFormList(NewFormNo).Description = ""             'The web page description can be blank.
+        WebPageFormList(NewFormNo).FileDirectory = ""           'Only Web files in the Project directory can be opened from another Web Page Form.
+        WebPageFormList(NewFormNo).FileName = WebPageFileName  'Set the web page file name to be opened.
+        WebPageFormList(NewFormNo).OpenDocument                'Open the web page file name.
+
+    End Sub
+
+    Public Sub ParentProjectName(ByVal FormName As String, ByVal ItemName As String)
+        'Return the Parent Project name:
+        RestoreSetting(FormName, ItemName, Project.ParentProjectName)
+    End Sub
+
+    Public Sub ParentProjectPath(ByVal FormName As String, ByVal ItemName As String)
+        'Return the Parent Project path:
+        RestoreSetting(FormName, ItemName, Project.ParentProjectPath)
+    End Sub
+
+    Public Sub ParentProjectParameterValue(ByVal FormName As String, ByVal ItemName As String, ByVal ParameterName As String)
+        'Return the specified Parent Project parameter value:
+        RestoreSetting(FormName, ItemName, Project.ParentParameter(ParameterName).Value)
+    End Sub
+
+    Public Sub ProjectParameterValue(ByVal FormName As String, ByVal ItemName As String, ByVal ParameterName As String)
+        'Return the specified Project parameter value:
+        RestoreSetting(FormName, ItemName, Project.Parameter(ParameterName).Value)
+    End Sub
+
+    Public Sub ApplicationNetworkName(ByVal FormName As String, ByVal ItemName As String)
+        'Return the name of the Application Network:
+        RestoreSetting(FormName, ItemName, Project.Parameter("AppNetName").Value)
+    End Sub
+
+
+#End Region 'Methods Called by JavaScript -----------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
 #Region " Project Events Code"
 
     Private Sub Project_Message(Msg As String) Handles Project.Message
@@ -1500,9 +2658,6 @@ Public Class Main
 
     Private Sub Project_ErrorMessage(Msg As String) Handles Project.ErrorMessage
         'Display the Project error message:
-        'Message.SetWarningStyle()
-        'Message.Add(Msg & vbCrLf)
-        'Message.SetNormalStyle()
         Message.AddWarning(Msg & vbCrLf)
     End Sub
 
@@ -1521,6 +2676,18 @@ Public Class Main
 
         RestoreFormSettings()
         Project.ReadProjectInfoFile()
+
+        Project.ReadParameters()
+        Project.ReadParentParameters()
+        If Project.ParentParameterExists("AppNetName") Then
+            Project.AddParameter("AppNetName", Project.ParentParameter("AppNetName").Value, Project.ParentParameter("AppNetName").Description) 'AddParameter will update the parameter if it already exists.
+            AppNetName = Project.Parameter("AppNetName").Value
+        Else
+            AppNetName = Project.GetParameter("AppNetName")
+        End If
+
+        Project.LockProject() 'Lock the project while it is open in this application.
+
         Project.Usage.StartTime = Now
 
         ApplicationInfo.SettingsLocn = Project.SettingsLocn
@@ -1567,81 +2734,155 @@ Public Class Main
 #Region " Online/Offline Code"
 
     Private Sub btnOnline_Click(sender As Object, e As EventArgs) Handles btnOnline.Click
-        'Connect to or disconnect from the Application Network.
-        If ConnectedToAppnet = False Then
-            ConnectToAppNet()
+        'Connect to or disconnect from the Communication Network (Message Service).
+        If ConnectedToComNet = False Then
+            ConnectToComNet()
         Else
-            DisconnectFromAppNet()
+            DisconnectFromComNet()
         End If
     End Sub
 
-    Private Sub ConnectToAppNet()
-        'Connect to the Application Network. (Message Exchange)
 
-        Dim Result As Boolean
+    Private Sub ConnectToComNet()
+        'Connect to the Communication Network. (Message Service)
 
         If IsNothing(client) Then
             client = New ServiceReference1.MsgServiceClient(New System.ServiceModel.InstanceContext(New MsgServiceCallback))
         End If
 
+        If ComNetRunning() Then
+            'The Message Service is Running.
+        Else  'The Message Service is NOT Running.
+            'Start the Message Service:
+            If System.IO.File.Exists(MsgServiceExePath) Then 'OK to start the Message Service application:
+                Shell(Chr(34) & MsgServiceExePath & Chr(34), AppWinStyle.NormalFocus) 'Start Message Service application with no argument
+            Else
+                'Incorrect Message Service Executable path.
+                Message.AddWarning("Message Service exe file not found. Service not started." & vbCrLf)
+            End If
+        End If
+
         If client.State = ServiceModel.CommunicationState.Faulted Then
-            Message.SetWarningStyle()
-            Message.Add("client state is faulted. Connection not made!" & vbCrLf)
+            Message.AddWarning("Client state is faulted. Connection not made!" & vbCrLf)
         Else
             Try
-                client.Endpoint.Binding.SendTimeout = New System.TimeSpan(0, 0, 8) 'Temporarily set the send timeaout to 8 seconds
+                'client.Endpoint.Binding.SendTimeout = New System.TimeSpan(0, 0, 8) 'Temporarily set the send timeaout to 8 seconds
+                client.Endpoint.Binding.SendTimeout = New System.TimeSpan(0, 0, 16) 'Temporarily set the send timeaout to 16 seconds
+                ConnectionName = ApplicationInfo.Name 'This name will be modified if it is already used in an existing connection.
+                ConnectionName = client.Connect(AppNetName, ApplicationInfo.Name, ConnectionName, Project.Name, Project.Description, Project.Type, Project.Path, False, False) 'UPDATED 2Feb19
 
-                Result = client.Connect(ApplicationInfo.Name, ServiceReference1.clsConnectionAppTypes.Application, False, False) 'Application Name is "Application_Template"
-                'appName, appType, getAllWarnings, getAllMessages
-
-                If Result = True Then
-                    Message.Add("Connected to the Application Network as " & ApplicationInfo.Name & vbCrLf)
+                If ConnectionName <> "" Then
+                    Message.Add("Connected to the Communication Network as " & ConnectionName & vbCrLf)
                     client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
                     btnOnline.Text = "Online"
                     btnOnline.ForeColor = Color.ForestGreen
-                    ConnectedToAppnet = True
+                    ConnectedToComNet = True
                     SendApplicationInfo()
+                    client.GetMessageServiceAppInfoAsync() 'Update the Exe Path in case it has changed. This path may be needed in the future to start the ComNet (Message Service).
                 Else
-                    Message.Add("Connection to the Application Network failed!" & vbCrLf)
+                    Message.Add("Connection to the Communication Network failed!" & vbCrLf)
                     client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
                 End If
             Catch ex As System.TimeoutException
-                Message.Add("Timeout error. Check if the Application Network is running." & vbCrLf)
+                Message.Add("Timeout error. Check if the Communication Network is running." & vbCrLf)
             Catch ex As Exception
                 Message.Add("Error message: " & ex.Message & vbCrLf)
                 client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
             End Try
         End If
+    End Sub
+
+    Private Sub ConnectToComNet(ByVal ConnName As String)
+        'Connect to the Communication Network with the connection name ConnName.
+
+        'If ConnectedToAppnet = False Then
+        If ConnectedToComNet = False Then
+            Dim Result As Boolean
+
+            If IsNothing(client) Then
+                client = New ServiceReference1.MsgServiceClient(New System.ServiceModel.InstanceContext(New MsgServiceCallback))
+            End If
+
+            If client.State = ServiceModel.CommunicationState.Faulted Then
+                Message.AddWarning("client state is faulted. Connection not made!" & vbCrLf)
+            Else
+                Try
+                    'client.Endpoint.Binding.SendTimeout = New System.TimeSpan(0, 0, 8) 'Temporarily set the send timeaout to 8 seconds
+                    client.Endpoint.Binding.SendTimeout = New System.TimeSpan(0, 0, 16) 'Temporarily set the send timeaout to 16 seconds
+                    ConnectionName = ConnName 'This name will be modified if it is already used in an existing connection.
+                    ConnectionName = client.Connect(AppNetName, ApplicationInfo.Name, ConnectionName, Project.Name, Project.Description, Project.Type, Project.Path, False, False) 'UPDATED 2Feb19
+
+                    If ConnectionName <> "" Then
+                        Message.Add("Connected to the Communication Network as " & ConnectionName & vbCrLf)
+                        client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
+                        btnOnline.Text = "Online"
+                        btnOnline.ForeColor = Color.ForestGreen
+                        ConnectedToComNet = True
+                        SendApplicationInfo()
+                    Else
+                        Message.Add("Connection to the Communication Network failed!" & vbCrLf)
+                        client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
+                    End If
+                Catch ex As System.TimeoutException
+                    Message.Add("Timeout error. Check if the Communication Network is running." & vbCrLf)
+                Catch ex As Exception
+                    Message.Add("Error message: " & ex.Message & vbCrLf)
+                    client.Endpoint.Binding.SendTimeout = New System.TimeSpan(1, 0, 0) 'Restore the send timeaout to 1 hour
+                End Try
+            End If
+        Else
+            Message.AddWarning("Already connected to the Communication Network." & vbCrLf)
+        End If
 
     End Sub
 
-    Private Sub DisconnectFromAppNet()
-        'Disconnect from the Application Network.
+    Private Sub DisconnectFromComNet()
+        'Disconnect from the Communication Network.
 
-        Dim Result As Boolean
-
-        If IsNothing(client) Then
-            Message.Add("Already disconnected from the Application Network." & vbCrLf)
-            btnOnline.Text = "Offline"
-            btnOnline.ForeColor = Color.Red
-            ConnectedToAppnet = False
-        Else
-            If client.State = ServiceModel.CommunicationState.Faulted Then
-                Message.Add("client state is faulted." & vbCrLf)
+        If ConnectedToComNet = True Then
+            If IsNothing(client) Then
+                Message.Add("Already disconnected from the Communication Network." & vbCrLf)
+                btnOnline.Text = "Offline"
+                btnOnline.ForeColor = Color.Red
+                ConnectedToComNet = False
+                ConnectionName = ""
             Else
-                Try
-                    Message.Add("Running client.Disconnect(ApplicationName)   ApplicationName = " & ApplicationInfo.Name & vbCrLf)
-                    client.Disconnect(ApplicationInfo.Name) 'NOTE: If Application Network has closed, this application freezes at this line! Try Catch EndTry added to fix this.
-                    btnOnline.Text = "Offline"
-                    btnOnline.ForeColor = Color.Red
-                    ConnectedToAppnet = False
-                Catch ex As Exception
-                    Message.SetWarningStyle()
-                    Message.Add("Error disconnecting from Application Network: " & ex.Message & vbCrLf)
-                End Try
+                If client.State = ServiceModel.CommunicationState.Faulted Then
+                    Message.Add("client state is faulted." & vbCrLf)
+                    ConnectionName = ""
+                Else
+                    Try
+                        client.Disconnect(AppNetName, ConnectionName)
+                        btnOnline.Text = "Offline"
+                        btnOnline.ForeColor = Color.Red
+                        ConnectedToComNet = False
+                        ConnectionName = ""
+                        Message.Add("Disconnected from the Communication Network." & vbCrLf)
+                    Catch ex As Exception
+                        Message.AddWarning("Error disconnecting from Communication Network: " & ex.Message & vbCrLf)
+                    End Try
+                End If
             End If
         End If
     End Sub
+
+    Private Function ComNetRunning() As Boolean
+        'Return True if ComNet (Message Service) is running.
+        If MsgServiceAppPath = "" Then
+            Message.Add("Message Service application path is not known." & vbCrLf)
+            Message.Add("Run the Message Service before connecting to update the path." & vbCrLf)
+            Return False
+        Else
+            If System.IO.File.Exists(MsgServiceAppPath & "\Application.Lock") Then
+                Message.Add("AppLock found - ComNet is running." & vbCrLf)
+                Return True
+            Else
+                Message.Add("AppLock not found - ComNet is running." & vbCrLf)
+                Return False
+            End If
+        End If
+
+    End Function
 
     Private Sub SendApplicationInfo()
         'Send the application information to the Administrator connections.
@@ -1660,6 +2901,9 @@ Public Class Main
                 Dim name As New XElement("Name", Me.ApplicationInfo.Name)
                 applicationInfo.Add(name)
 
+                Dim text As New XElement("Text", "Share Analysis")
+                applicationInfo.Add(text)
+
                 Dim exePath As New XElement("ExecutablePath", Me.ApplicationInfo.ExecutablePath)
                 applicationInfo.Add(exePath)
 
@@ -1669,13 +2913,58 @@ Public Class Main
                 applicationInfo.Add(description)
                 xmessage.Add(applicationInfo)
                 doc.Add(xmessage)
-                client.SendMessage("ApplicationNetwork", doc.ToString)
+
+                'Show the message sent to AppNet:
+                Message.XAddText("Message sent to " & "MessageService" & ":" & vbCrLf, "XmlSentNotice")
+                Message.XAddXml(doc.ToString)
+                Message.XAddText(vbCrLf, "Normal") 'Add extra line
+
+                client.SendMessage("", "MessageService", doc.ToString) 'UPDATED 2Feb19
             End If
         End If
 
     End Sub
 
 #End Region 'Online/Offline code
+
+    Private Sub btnAdd_Click(sender As Object, e As EventArgs) Handles btnAdd.Click
+        'Add the current project to the Message Service list.
+
+        If Project.ParentProjectName <> "" Then
+            Message.AddWarning("This project has a parent: " & Project.ParentProjectName & vbCrLf)
+            Message.AddWarning("Child projects can not be added to the list." & vbCrLf)
+            Exit Sub
+        End If
+
+        If ConnectedToComNet = False Then
+            Message.AddWarning("The application is not connected to the Message Service." & vbCrLf)
+        Else 'Connected to the Message Service (ComNet).
+            If IsNothing(client) Then
+                Message.Add("No client connection available!" & vbCrLf)
+            Else
+                If client.State = ServiceModel.CommunicationState.Faulted Then
+                    Message.Add("Client state is faulted. Message not sent!" & vbCrLf)
+                Else
+                    'Construct the XMessage to send to AppNet:
+                    Dim decl As New XDeclaration("1.0", "utf-8", "yes")
+                    Dim doc As New XDocument(decl, Nothing) 'Create an XDocument to store the instructions.
+                    Dim xmessage As New XElement("XMsg") 'This indicates the start of the message in the XMessage class
+                    Dim projectInfo As New XElement("ProjectInfo")
+
+                    Dim Path As New XElement("Path", Project.Path)
+                    projectInfo.Add(Path)
+                    xmessage.Add(projectInfo)
+                    doc.Add(xmessage)
+
+                    'Show the message sent to AppNet:
+                    Message.XAddText("Message sent to " & "MessageService" & ":" & vbCrLf, "XmlSentNotice")
+                    Message.XAddXml(doc.ToString)
+                    Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                    client.SendMessage("", "MessageService", doc.ToString)
+                End If
+            End If
+        End If
+    End Sub
 
 #Region " Process XMessages" '=========================================================================================================================================================
 
@@ -1691,15 +2980,677 @@ Public Class Main
         'Add code here to process the XMessage instructions.
         'See other Andorville(TM) applciations for examples.
 
+        If IsDBNull(Info) Then
+            Info = ""
+        End If
+
         Select Case Locn
+
+            Case "ClientAppNetName"
+                ClientAppNetName = Info 'The name of the Client Application Network requesting service. 
+
+            Case "ClientName"
+                ClientAppName = Info 'The name of the Client requesting service.
+
+            Case "ClientConnectionName"
+                ClientConnName = Info 'The name of the client requesting service.
+
+            Case "ClientLocn" 'The Location within the Client requesting service.
+                Dim statusOK As New XElement("Status", "OK") 'Add Status OK element when the Client Location is changed
+                xlocns(xlocns.Count - 1).Add(statusOK)
+
+                xmessage.Add(xlocns(xlocns.Count - 1)) 'Add the instructions for the last location to the reply xmessage
+                xlocns.Add(New XElement(Info)) 'Start the new location instructions
+
+            Case "Main"
+                 'Blank message - do nothing.
+
+            Case "Main:Status"
+                Select Case Info
+                    Case "OK"
+                        'Main instructions completed OK
+                End Select
+
+            Case "StockChart"
+                 'Blank message - do nothing.
+
+            Case "StockChart:Status"
+                Select Case Info
+                    Case "OK"
+                        'Stock Chart instructions completed OK
+                End Select
+
+            Case "PointChart"
+                'Blank message - do nothing.
+
+            Case "PointChart:Status"
+                Select Case Info
+                    Case "OK"
+                        'Point Chart instructions completed OK
+                End Select
+
+           'Stock Chart instructions: ---------------------------------------------------------------------------------------------------
+
+            Case "StockChart:Settings:Command"
+                Select Case Info
+                    Case "ClearChart"
+                        ClearStockChartDefaults()
+                    Case "OK"
+                        'StockChartDefaults has been updated. Display in rtbStockChartDefaults.
+                        rtbStockChartDefaults.Text = StockChartDefaults.ToString
+                        FormatXmlText(rtbStockChartDefaults)
+                End Select
+
+            Case "StockChart:Settings:InputData:Type"
+                StockChartDefaults.<StockChart>.<Settings>.<InputData>.<Type>.Value = Info
+            Case "StockChart:Settings:InputData:DatabasePath"
+                StockChartDefaults.<StockChart>.<Settings>.<InputData>.<DatabasePath>.Value = Info
+            Case "StockChart:Settings:InputData:DataDescription"
+                StockChartDefaults.<StockChart>.<Settings>.<InputData>.<DataDescription>.Value = Info
+            Case "StockChart:Settings:InputData:DatabaseQuery"
+                StockChartDefaults.<StockChart>.<Settings>.<InputData>.<DatabaseQuery>.Value = Info
+
+            Case "StockChart:Settings:ChartProperties:SeriesName"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartProperties>.<SeriesName>.Value = Info
+            Case "StockChart:Settings:ChartProperties:XValuesFieldName"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartProperties>.<XValuesFieldName>.Value = Info
+            Case "StockChart:Settings:ChartProperties:YValuesHighFieldName"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartProperties>.<YValuesHighFieldName>.Value = Info
+            Case "StockChart:Settings:ChartProperties:YValuesLowFieldName"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartProperties>.<YValuesLowFieldName>.Value = Info
+            Case "StockChart:Settings:ChartProperties:YValuesOpenFieldName"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartProperties>.<YValuesOpenFieldName>.Value = Info
+            Case "StockChart:Settings:ChartProperties:YValuesCloseFieldName"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartProperties>.<YValuesCloseFieldName>.Value = Info
+
+            Case "StockChart:Settings:ChartTitle:LabelName"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<LabelName>.Value = Info
+            Case "StockChart:Settings:ChartTitle:Text"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Text>.Value = Info
+            Case "StockChart:Settings:ChartTitle:FontName"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<FontName>.Value = Info
+            Case "StockChart:Settings:ChartTitle:Color"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Color>.Value = Info
+            Case "StockChart:Settings:ChartTitle:Size"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Size>.Value = Info
+            Case "StockChart:Settings:ChartTitle:Bold"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Bold>.Value = Info
+            Case "StockChart:Settings:ChartTitle:Italic"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Italic>.Value = Info
+            Case "StockChart:Settings:ChartTitle:Underline"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Underline>.Value = Info
+            Case "StockChart:Settings:ChartTitle:Strikeout"
+                StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Strikeout>.Value = Info
+
+            Case "StockChart:Settings:XAxis:TitleText"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleText>.Value = Info
+            Case "StockChart:Settings:XAxis:TitleFontName"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleFontName>.Value = Info
+            Case "StockChart:Settings:XAxis:TitleColor"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleColor>.Value = Info
+            Case "StockChart:Settings:XAxis:TitleSize"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleSize>.Value = Info
+            Case "StockChart:Settings:XAxis:TitleBold"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleBold>.Value = Info
+            Case "StockChart:Settings:XAxis:TitleItalic"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleItalic>.Value = Info
+            Case "StockChart:Settings:XAxis:TitleUnderline"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleUnderline>.Value = Info
+            Case "StockChart:Settings:XAxis:TitleStrikeout"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleStrikeout>.Value = Info
+            Case "StockChart:Settings:XAxis:TitleAlignment"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleAlignment>.Value = Info
+            Case "StockChart:Settings:XAxis:AutoMinimum"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoMinimum>.Value = Info
+            Case "StockChart:Settings:XAxis:Minimum"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<Minimum>.Value = Info
+            Case "StockChart:Settings:XAxis:AutoMaximum"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoMaximum>.Value = Info
+            Case "StockChart:Settings:XAxis:Maximum"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<Maximum>.Value = Info
+            Case "StockChart:Settings:XAxis:AutoInterval"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoInterval>.Value = Info
+            Case "StockChart:Settings:XAxis:Interval"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<Interval>.Value = Info
+            Case "StockChart:Settings:XAxis:AutoMajorGridInterval"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoMajorGridInterval>.Value = Info
+            Case "StockChart:Settings:XAxis:MajorGridInterval"
+                StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<MajorGridInterval>.Value = Info
+
+            Case "StockChart:Settings:YAxis:TitleText"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleText>.Value = Info
+            Case "StockChart:Settings:YAxis:TitleFontName"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleFontName>.Value = Info
+            Case "StockChart:Settings:YAxis:TitleColor"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleColor>.Value = Info
+            Case "StockChart:Settings:YAxis:TitleSize"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleSize>.Value = Info
+            Case "StockChart:Settings:YAxis:TitleBold"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleBold>.Value = Info
+            Case "StockChart:Settings:YAxis:TitleItalic"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleItalic>.Value = Info
+            Case "StockChart:Settings:YAxis:TitleUnderline"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleUnderline>.Value = Info
+            Case "StockChart:Settings:YAxis:TitleStrikeout"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleStrikeout>.Value = Info
+            Case "StockChart:Settings:YAxis:TitleAlignment"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleAlignment>.Value = Info
+            Case "StockChart:Settings:YAxis:AutoMinimum"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<AutoMinimum>.Value = Info
+            Case "StockChart:Settings:YAxis:Minimum"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<Minimum>.Value = Info
+            Case "StockChart:Settings:YAxis:AutoMaximum"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<AutoMaximum>.Value = Info
+            Case "StockChart:Settings:YAxis:Maximum"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<Maximum>.Value = Info
+
+            Case "StockChart:Settings:YAxis:AutoInterval"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<AutoInterval>.Value = Info
+            Case "StockChart:Settings:YAxis:Interval"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<Interval>.Value = Info
+            Case "StockChart:Settings:YAxis:AutoMajorGridInterval"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<AutoMajorGridInterval>.Value = Info
+            Case "StockChart:Settings:YAxis:MajorGridInterval"
+                StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<MajorGridInterval>.Value = Info
+
+           'Point Chart instructions: ---------------------------------------------------------------------------------------------------
+            Case "PointChart:Settings:Command"
+                Select Case Info
+                    Case "ClearChart"
+                        ClearPointChartDefaults()
+                    Case "OK"
+                        'PointChartDefaults has been updated. Display in rtbPointChartDefaults.
+                        rtbPointChartDefaults.Text = PointChartDefaults.ToString
+                        FormatXmlText(rtbPointChartDefaults)
+                End Select
+
+            Case "PointChart:Settings:InputData:Type"
+                PointChartDefaults.<PointChart>.<Settings>.<InputData>.<Type>.Value = Info
+            Case "PointChart:Settings:InputData:DatabasePath"
+                PointChartDefaults.<PointChart>.<Settings>.<InputData>.<DatabasePath>.Value = Info
+            Case "PointChart:Settings:InputData:DataDescription"
+                PointChartDefaults.<PointChart>.<Settings>.<InputData>.<DataDescription>.Value = Info
+            Case "PointChart:Settings:InputData:DatabaseQuery"
+                PointChartDefaults.<PointChart>.<Settings>.<InputData>.<DatabaseQuery>.Value = Info
+
+            Case "PointChart:Settings:ChartProperties:SeriesName"
+                PointChartDefaults.<StockChart>.<Settings>.<ChartProperties>.<SeriesName>.Value = Info
+
+            Case "PointChart:Settings:ChartProperties:XValuesFieldName"
+                PointChartDefaults.<StockChart>.<Settings>.<ChartProperties>.<XValuesFieldName>.Value = Info
+
+            Case "PointChart:Settings:ChartProperties:YValuesFieldName"
+                PointChartDefaults.<StockChart>.<Settings>.<ChartProperties>.<YValuesFieldName>.Value = Info
+
+            Case "PointChart:Settings:ChartTitle:LabelName"
+                PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<LabelName>.Value = Info
+            Case "PointChart:Settings:ChartTitle:Text"
+                PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Text>.Value = Info
+            Case "PointChart:Settings:ChartTitle:FontName"
+                PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<FontName>.Value = Info
+            Case "PointChart:Settings:ChartTitle:Color"
+                PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Color>.Value = Info
+            Case "PointChart:Settings:ChartTitle:Size"
+                PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Size>.Value = Info
+            Case "PointChart:Settings:ChartTitle:Bold"
+                PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Bold>.Value = Info
+            Case "PointChart:Settings:ChartTitle:Italic"
+                PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Italic>.Value = Info
+            Case "PointChart:Settings:ChartTitle:Underline"
+                PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Underline>.Value = Info
+            Case "PointChart:Settings:ChartTitle:Strikeout"
+                PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Strikeout>.Value = Info
+            Case "PointChart:Settings:ChartTitle:Alignment"
+                PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Alignment>.Value = Info
+
+            Case "PointChart:Settings:XAxis:TitleText"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleText>.Value = Info
+            Case "PointChart:Settings:XAxis:TitleFontName"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleFontName>.Value = Info
+            Case "PointChart:Settings:XAxis:TitleColor"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleColor>.Value = Info
+            Case "PointChart:Settings:XAxis:TitleSize"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleSize>.Value = Info
+            Case "PointChart:Settings:XAxis:TitleBold"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleBold>.Value = Info
+            Case "PointChart:Settings:XAxis:TitleItalic"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleItalic>.Value = Info
+            Case "PointChart:Settings:XAxis:TitleUnderline"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleUnderline>.Value = Info
+            Case "PointChart:Settings:XAxis:TitleStrikeout"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleStrikeout>.Value = Info
+            Case "PointChart:Settings:XAxis:TitleAlignment"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleAlignment>.Value = Info
+            Case "PointChart:Settings:XAxis:AutoMinimum"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoMinimum>.Value = Info
+            Case "PointChart:Settings:XAxis:Minimum"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<Minimum>.Value = Info
+            Case "PointChart:Settings:XAxis:AutoMaximum"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoMaximum>.Value = Info
+            Case "PointChart:Settings:XAxis:Maximum"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<Maximum>.Value = Info
+            Case "PointChart:Settings:XAxis:AutoInterval"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoInterval>.Value = Info
+            Case "PointChart:Settings:XAxis:Interval"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<Interval>.Value = Info
+            Case "PointChart:Settings:XAxis:AutoMajorGridInterval"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoMajorGridInterval>.Value = Info
+            Case "PointChart:Settings:XAxis:MajorGridInterval"
+                PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<MajorGridInterval>.Value = Info
+
+            Case "PointChart:Settings:YAxis:TitleText"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleText>.Value = Info
+            Case "PointChart:Settings:YAxis:TitleFontName"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleFontName>.Value = Info
+            Case "PointChart:Settings:YAxis:TitleColor"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleColor>.Value = Info
+            Case "PointChart:Settings:YAxis:TitleSize"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleSize>.Value = Info
+            Case "PointChart:Settings:YAxis:TitleBold"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleBold>.Value = Info
+            Case "PointChart:Settings:YAxis:TitleItalic"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleItalic>.Value = Info
+            Case "PointChart:Settings:YAxis:TitleUnderline"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleUnderline>.Value = Info
+            Case "PointChart:Settings:YAxis:TitleStrikeout"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleStrikeout>.Value = Info
+            Case "PointChart:Settings:YAxis:TitleAlignment"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleAlignment>.Value = Info
+            Case "PointChart:Settings:YAxis:AutoMinimum"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<AutoMinimum>.Value = Info
+            Case "PointChart:Settings:YAxis:Minimum"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<Minimum>.Value = Info
+            Case "PointChart:Settings:YAxis:AutoMaximum"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<AutoMaximum>.Value = Info
+            Case "PointChart:Settings:YAxis:Maximum"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<Maximum>.Value = Info
+            Case "PointChart:Settings:YAxis:AutoInterval"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<AutoInterval>.Value = Info
+            Case "PointChart:Settings:YAxis:Interval"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<Interval>.Value = Info
+            Case "PointChart:Settings:YAxis:AutoMajorGridInterval"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<AutoMajorGridInterval>.Value = Info
+            Case "PointChart:Settings:YAxis:MajorGridInterval"
+                PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<MajorGridInterval>.Value = Info
+
+           'Get Share Information ====================================================
+
+           'Get GICS List
+            Case "GetGicsList"
+                If Info = "OK" Then
+                    GetGicsList()
+                End If
+
+          'Get company list in GICS group. Info contains the GICS code.
+            Case "GetGicsCompanyList"
+                GetGicsCompanyList(Info)
+
+           'Get company name. Info contains the ASX code.
+            Case "GetCompanyName"
+                GetCompanyName(Info)
+
+
+
+           'Startup Command Arguments ================================================
+            Case "ProjectName"
+                If Project.OpenProject(Info) = True Then
+                    ProjectSelected = True 'Project has been opened OK.
+                Else
+                    ProjectSelected = False 'Project could not be opened.
+                End If
+
+            Case "ProjectID"
+                Message.AddWarning("Add code to handle ProjectID parameter at StartUp!" & vbCrLf)
+                'Note the AppNet will usually select a project using ProjectPath.
+
+            Case "ProjectPath"
+                If Project.OpenProjectPath(Info) = True Then
+                    ProjectSelected = True 'Project has been opened OK.
+
+                Else
+                    ProjectSelected = False 'Project could not be opened.
+                End If
+
+            Case "ConnectionName"
+                StartupConnectionName = Info
+            '--------------------------------------------------------------------------
+
+            'Application Information  =================================================
+            'returned by client.GetMessageServiceAppInfoAsync()
+            Case "MessageServiceAppInfo:Name"
+                'The name of the Message Service Application. (Not used.)
+
+            Case "MessageServiceAppInfo:ExePath"
+                'The executable file path of the Message Service Application.
+                MsgServiceExePath = Info
+
+            Case "MessageServiceAppInfo:Path"
+                'The path of the Message Service Application (ComNet). (This is where an Application.Lock file will be found while ComNet is running.)
+                MsgServiceAppPath = Info
+            '---------------------------------------------------------------------------
+
+            'Show Share Price Table ====================================================
+            Case "ShowSharePriceTable:Command"
+                Select Case Info
+                    Case "Apply"
+                        If SharePricesFormNo = -1 Then
+                            Message.AddWarning("The Share Prices Form Number is not known." & vbCrLf)
+                        Else
+                            SharePricesFormList(SharePricesFormNo).ApplyQuery
+                        End If
+                    Case "OpenNewForm"
+                        SharePricesFormNo = AppendSharePricesView()
+
+                End Select
+
+            Case "ShowSharePriceTable:Query"
+                If SharePricesFormNo = -1 Then
+                    'Message.AddWarning("The Share Prices Form Number is not known." & vbCrLf)
+                    SharePricesFormNo = AppendSharePricesView()
+                    SharePricesFormList(SharePricesFormNo).Query = Info
+                Else
+                    SharePricesFormList(SharePricesFormNo).Query = Info
+                End If
+
+            '---------------------------------------------------------------------------
+
+            'Show Share Price Chart ====================================================
+            Case "ShowSharePriceChart:Query"
+                txtSPChartQuery.Text = Info 'Specify the Query used to extract the data to chart.
+                UpdateChartSharePricesTab()
+
+            Case "ShowSharePriceChart:SeriesName"
+                txtSeriesName.Text = Info 'Set the Series Name -  the name of the series of points being charted.
+
+            Case "ShowSharePriceChart:ChartTitle"
+                txtChartTitle.Text = Info 'Set the Chart Title.
+
+            Case "ShowSharePriceChart:Command"
+                Select Case Info
+                    Case "Apply"
+                        DisplayStockChart()
+                    Case Else
+                        Message.AddWarning("Unknown ShowSharePriceChart command: " & Info & vbCrLf)
+                End Select
+
+            '---------------------------------------------------------------------------
 
             Case "EndOfSequence"
                 'End of Information Vector Sequence reached.
+                'Add Status OK element at the end of the sequence:
+                Dim statusOK As New XElement("Status", "OK") 'Add Status OK element at the end of the sequence
+                xlocns(xlocns.Count - 1).Add(statusOK)
+
             Case Else
-                Message.SetWarningStyle()
-                Message.Add("Unknown location: " & Locn & vbCrLf)
-                Message.SetNormalStyle()
+                Message.AddWarning("Unknown location: " & Locn & vbCrLf)
+                Message.AddWarning("            info: " & Info & vbCrLf)
         End Select
+
+    End Sub
+
+    Private Sub ClearStockChartDefaults()
+        'Clear the settings in the StockChartDefaults XDocument.
+
+        StockChartDefaults = <?xml version="1.0" encoding="utf-8"?>
+                             <!---->
+                             <StockChart>
+                                 <Settings>
+                                     <InputData>
+                                         <Type>Database</Type>
+                                         <DatabasePath></DatabasePath>
+                                         <DataDescription></DataDescription>
+                                         <DatabaseQuery></DatabaseQuery>
+                                     </InputData>
+                                     <ChartProperties>
+                                         <SeriesName></SeriesName>
+                                         <XValuesFieldName></XValuesFieldName>
+                                         <YValuesHighFieldName></YValuesHighFieldName>
+                                         <YValuesLowFieldName></YValuesLowFieldName>
+                                         <YValuesOpenFieldName></YValuesOpenFieldName>
+                                         <YValuesCloseFieldName></YValuesCloseFieldName>
+                                     </ChartProperties>
+                                     <ChartTitle>
+                                         <LabelName>Label1</LabelName>
+                                         <Text></Text>
+                                         <FontName>Arial</FontName>
+                                         <Color>Black</Color>
+                                         <Size>12</Size>
+                                         <Bold>true</Bold>
+                                         <Italic>false</Italic>
+                                         <Underline>false</Underline>
+                                         <Strikeout>false</Strikeout>
+                                         <Alignment>TopCenter</Alignment>
+                                     </ChartTitle>
+                                     <XAxis>
+                                         <TitleText></TitleText>
+                                         <TitleFontName>Arial</TitleFontName>
+                                         <TitleColor>Black</TitleColor>
+                                         <TitleSize>14</TitleSize>
+                                         <TitleBold>true</TitleBold>
+                                         <TitleItalic>false</TitleItalic>
+                                         <TitleUnderline>false</TitleUnderline>
+                                         <TitleStrikeout>false</TitleStrikeout>
+                                         <TitleAlignment>Center</TitleAlignment>
+                                         <AutoMinimum>true</AutoMinimum>
+                                         <Minimum>0</Minimum>
+                                         <AutoMaximum>true</AutoMaximum>
+                                         <Maximum>1</Maximum>
+                                         <AutoInterval>true</AutoInterval>
+                                         <Interval>0</Interval>
+                                         <AutoMajorGridInterval>true</AutoMajorGridInterval>
+                                         <MajorGridInterval>0</MajorGridInterval>
+                                     </XAxis>
+                                     <YAxis>
+                                         <TitleText></TitleText>
+                                         <TitleFontName>Arial</TitleFontName>
+                                         <TitleColor>Black</TitleColor>
+                                         <TitleSize>14</TitleSize>
+                                         <TitleBold>true</TitleBold>
+                                         <TitleItalic>false</TitleItalic>
+                                         <TitleUnderline>false</TitleUnderline>
+                                         <TitleStrikeout>false</TitleStrikeout>
+                                         <TitleAlignment>Center</TitleAlignment>
+                                         <AutoMinimum>true</AutoMinimum>
+                                         <Minimum>0</Minimum>
+                                         <AutoMaximum>true</AutoMaximum>
+                                         <Maximum>1</Maximum>
+                                         <AutoInterval>true</AutoInterval>
+                                         <Interval>0</Interval>
+                                         <AutoMajorGridInterval>true</AutoMajorGridInterval>
+                                         <MajorGridInterval>0</MajorGridInterval>
+                                     </YAxis>
+                                 </Settings>
+                             </StockChart>
+
+
+    End Sub
+
+    Private Sub ClearPointChartDefaults()
+        'Clear the settings in the PointChartDefaults XDocument.
+
+        PointChartDefaults = <?xml version="1.0" encoding="utf-8"?>
+                             <!---->
+                             <PointChart>
+                                 <Settings>
+                                     <InputData>
+                                         <Type>Database</Type>
+                                         <DatabasePath></DatabasePath>
+                                         <DataDescription></DataDescription>
+                                         <DatabaseQuery></DatabaseQuery>
+                                     </InputData>
+                                     <ChartProperties>
+                                         <SeriesName></SeriesName>
+                                         <XValuesFieldName></XValuesFieldName>
+                                         <YValuesFieldName></YValuesFieldName>
+                                     </ChartProperties>
+                                     <ChartTitle>
+                                         <LabelName>Label1</LabelName>
+                                         <Text></Text>
+                                         <FontName>Arial</FontName>
+                                         <Color>Black</Color>
+                                         <Size>12</Size>
+                                         <Bold>true</Bold>
+                                         <Italic>false</Italic>
+                                         <Underline>false</Underline>
+                                         <Strikeout>false</Strikeout>
+                                         <Alignment>TopCenter</Alignment>
+                                     </ChartTitle>
+                                     <XAxis>
+                                         <TitleText></TitleText>
+                                         <TitleFontName>Arial</TitleFontName>
+                                         <TitleColor>Black</TitleColor>
+                                         <TitleSize>14</TitleSize>
+                                         <TitleBold>true</TitleBold>
+                                         <TitleItalic>false</TitleItalic>
+                                         <TitleUnderline>false</TitleUnderline>
+                                         <TitleStrikeout>false</TitleStrikeout>
+                                         <TitleAlignment>Center</TitleAlignment>
+                                         <AutoMinimum>true</AutoMinimum>
+                                         <Minimum>0</Minimum>
+                                         <AutoMaximum>true</AutoMaximum>
+                                         <Maximum>1</Maximum>
+                                         <AutoInterval>true</AutoInterval>
+                                         <Interval>0</Interval>
+                                         <AutoMajorGridInterval>true</AutoMajorGridInterval>
+                                         <MajorGridInterval>0</MajorGridInterval>
+                                     </XAxis>
+                                     <YAxis>
+                                         <TitleText></TitleText>
+                                         <TitleFontName>Arial</TitleFontName>
+                                         <TitleColor>Black</TitleColor>
+                                         <TitleSize>14</TitleSize>
+                                         <TitleBold>true</TitleBold>
+                                         <TitleItalic>false</TitleItalic>
+                                         <TitleUnderline>false</TitleUnderline>
+                                         <TitleStrikeout>false</TitleStrikeout>
+                                         <TitleAlignment>Center</TitleAlignment>
+                                         <AutoMinimum>true</AutoMinimum>
+                                         <Minimum>0</Minimum>
+                                         <AutoMaximum>true</AutoMaximum>
+                                         <Maximum>1</Maximum>
+                                         <AutoInterval>true</AutoInterval>
+                                         <Interval>0</Interval>
+                                         <AutoMajorGridInterval>true</AutoMajorGridInterval>
+                                         <MajorGridInterval>0</MajorGridInterval>
+                                     </YAxis>
+                                 </Settings>
+                             </PointChart>
+    End Sub
+
+    Private Sub GetGicsList()
+        'Return the GICS list in an XMessage.
+
+        If SharePriceDbPath = "" Then
+            Message.AddWarning("A share price database has not been selected!" & vbCrLf)
+            Exit Sub
+        End If
+
+        Dim connString As String
+        Dim myConnection As OleDb.OleDbConnection = New OleDb.OleDbConnection
+        Dim Query As String = "Select Distinct GICS_Industry_Group From ASX_Company_List"
+        Dim ds As DataSet = New DataSet
+        Dim da As OleDb.OleDbDataAdapter
+
+        connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & SharePriceDbPath 'DatabasePath
+        myConnection.ConnectionString = connString
+        myConnection.Open()
+
+        da = New OleDb.OleDbDataAdapter(Query, myConnection)
+        da.MissingSchemaAction = MissingSchemaAction.AddWithKey
+
+        Try
+            da.Fill(ds, "myData")
+
+            Dim list As New XElement("GICS_List")
+            Dim I As Integer
+            For I = 0 To ds.Tables(0).Rows.Count - 1
+                Dim GicsGroupName As New XElement("GicsGroupName", ds.Tables(0).Rows(I).Item(0))
+                list.Add(GicsGroupName)
+            Next
+            xlocns(xlocns.Count - 1).Add(list)
+
+        Catch ex As Exception
+            Message.AddWarning("Error getting GICS list: " & ex.Message & vbCrLf)
+        End Try
+    End Sub
+
+    Private Sub GetGicsCompanyList(ByVal GicsGroup As String)
+        'Return the company list in the GICS group an XMessage.
+
+        If SharePriceDbPath = "" Then
+            Message.AddWarning("A share price database has not been selected!" & vbCrLf)
+            Exit Sub
+        End If
+
+        Dim connString As String
+        Dim myConnection As OleDb.OleDbConnection = New OleDb.OleDbConnection
+        Dim Query As String = "Select ASX_Code From ASX_Company_List Where GICS_Industry_Group = '" & GicsGroup & "'"
+        Dim ds As DataSet = New DataSet
+        Dim da As OleDb.OleDbDataAdapter
+
+        connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & SharePriceDbPath 'DatabasePath
+        myConnection.ConnectionString = connString
+        myConnection.Open()
+
+        da = New OleDb.OleDbDataAdapter(Query, myConnection)
+        da.MissingSchemaAction = MissingSchemaAction.AddWithKey
+
+        Try
+            da.Fill(ds, "myData")
+            Dim list As New XElement("Company_List")
+            Dim I As Integer
+            For I = 0 To ds.Tables(0).Rows.Count - 1
+                Dim AsxCode As New XElement("AsxCode", ds.Tables(0).Rows(I).Item(0))
+                list.Add(AsxCode)
+            Next
+            xlocns(xlocns.Count - 1).Add(list)
+        Catch ex As Exception
+            Message.AddWarning("Error getting Company List: " & ex.Message & vbCrLf)
+        End Try
+    End Sub
+
+    Private Sub GetCompanyName(ByVal AsxCode As String)
+        'Return the company name corresponding to the AsxCode in an XMessage.
+
+        If SharePriceDbPath = "" Then
+            Message.AddWarning("A share price database has not been selected!" & vbCrLf)
+            Exit Sub
+        End If
+
+        Dim connString As String
+        Dim myConnection As OleDb.OleDbConnection = New OleDb.OleDbConnection
+        Dim Query As String = "Select Company_Name From ASX_Company_List Where ASX_Code = '" & AsxCode & "'"
+        Dim ds As DataSet = New DataSet
+        Dim da As OleDb.OleDbDataAdapter
+
+        connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & SharePriceDbPath 'DatabasePath
+        myConnection.ConnectionString = connString
+        myConnection.Open()
+
+        da = New OleDb.OleDbDataAdapter(Query, myConnection)
+        da.MissingSchemaAction = MissingSchemaAction.AddWithKey
+
+        Try
+            da.Fill(ds, "myData")
+
+            If ds.Tables(0).Rows.Count = 0 Then
+                Message.AddWarning("No company found with the ASX Code: " & AsxCode & vbCrLf)
+                Dim CompanyName As New XElement("CompanyName", "")
+                xlocns(xlocns.Count - 1).Add(CompanyName)
+            Else
+                If ds.Tables(0).Rows.Count = 1 Then
+                    Dim CompanyName As New XElement("CompanyName", ds.Tables(0).Rows(0).Item(0))
+                    xlocns(xlocns.Count - 1).Add(CompanyName)
+                Else
+                    Message.AddWarning(ds.Tables(0).Rows.Count & " companies found with the ASX Code: " & AsxCode & vbCrLf)
+                    Dim CompanyName As New XElement("CompanyName", "")
+                    xlocns(xlocns.Count - 1).Add(CompanyName)
+                End If
+            End If
+
+        Catch ex As Exception
+            Message.AddWarning("Error getting Company Name: " & ex.Message & vbCrLf)
+        End Try
 
     End Sub
 
@@ -1720,11 +3671,11 @@ Public Class Main
                 Message.AddWarning("client state is faulted. Message not sent!" & vbCrLf)
             Else
                 Try
-                    Message.Add("Sending a message. Number of characters: " & MessageText.Length & vbCrLf)
-                    client.SendMessage(ClientAppName, MessageText)
+                    client.SendMessage(ClientAppNetName, ClientConnName, MessageText) 'Added 2Feb19
                     MessageText = "" 'Clear the message after it has been sent.
                     ClientAppName = "" 'Clear the Client Application Name after the message has been sent.
-                    ClientAppLocn = "" 'Clear the Client Application Location after the message has been sent.
+                    ClientConnName = "" 'Clear the Client Application Name after the message has been sent.
+                    xlocns.Clear()
                 Catch ex As Exception
                     Message.AddWarning("Error sending message: " & ex.Message & vbCrLf)
                 End Try
@@ -1756,6 +3707,9 @@ Public Class Main
 
         If OpenFileDialog1.ShowDialog() = vbOK Then
             SharePriceDbPath = OpenFileDialog1.FileName
+            'Set the corresponding Project Parameter:
+            Project.AddParameter("SharePriceDatabasePath", SharePriceDbPath, "The path of the Share Price database.")
+            Project.SaveParameters()
         End If
     End Sub
 
@@ -1775,6 +3729,9 @@ Public Class Main
 
         If OpenFileDialog1.ShowDialog() = vbOK Then
             FinancialsDbPath = OpenFileDialog1.FileName
+            'Set the corresponding Project Parameter:
+            Project.AddParameter("FinancialsDatabasePath", FinancialsDbPath, "The path of the Historical Financials database.")
+            Project.SaveParameters()
         End If
     End Sub
 
@@ -1794,6 +3751,9 @@ Public Class Main
 
         If OpenFileDialog1.ShowDialog() = vbOK Then
             CalculationsDbPath = OpenFileDialog1.FileName
+            'Set the corresponding Project Parameter:
+            Project.AddParameter("CalculationsDatabasePath", CalculationsDbPath, "The path of the Calculations database.")
+            Project.SaveParameters()
         End If
     End Sub
 
@@ -1825,46 +3785,15 @@ Public Class Main
         lstSharePrices.Items(IndexNo) = Description
     End Sub
 
-    Private Sub btnInsertViewSPBefore_Click(sender As Object, e As EventArgs) Handles btnInsertViewSPBefore.Click
-        'Insert a new Share Prices view before the item selected in the share prices list.
-        'If no item is selected, insert the new view at the start of the list.
-
-        Dim SelectedIndex As Integer = lstSharePrices.SelectedIndex 'The index of the selected view.
-        Dim NViews As Integer = lstSharePrices.Items.Count 'The number of views in the Share Prices list.
-        If NViews = 0 Then
-            lstSharePrices.Items.Add("")
-            Dim NewSettings As New DataViewSettings
-            SharePricesSettings.List.Add(NewSettings)
-            OpenNewSharePricesForm()
-        ElseIf NViews = 1 Then
-            lstSharePrices.Items.Insert(0, "")
-            'Insert a new Settings entry in FinancialSettings a position 0:
-            Dim NewSettings As New DataViewSettings
-            SharePricesSettings.List.Insert(0, NewSettings)
-            OpenSharePricesFormNo(0) 'Open the new blank view in the first position.
-        Else
-            If SelectedIndex >= 0 Then
-                lstSharePrices.Items.Insert(SelectedIndex, "")
-                'Insert a new Settings entry in SharePricesSettings:
-                Dim NewSettings As New DataViewSettings
-                SharePricesSettings.List.Insert(SelectedIndex, NewSettings)
-                OpenSharePricesFormNo(SelectedIndex)
-            Else
-                'No item selected
-                lstSharePrices.Items.Insert(0, "")
-                Dim NewSettings As New DataViewSettings
-                SharePricesSettings.List.Insert(0, NewSettings)
-                OpenSharePricesFormNo(0)
-            End If
-        End If
-    End Sub
 
     Private Sub btnInsertViewSPAfter_Click(sender As Object, e As EventArgs) Handles btnInsertViewSPAfter.Click
         'Insert a new Share Prices view after the item selected in the share prices list.
         'If no item is selected, insert the new view at the end of the list.
+        'This button was labelled "Insert After"
+        'It is now labelled "New"
 
         Dim SelectedIndex As Integer = lstSharePrices.SelectedIndex 'The index of the selected view.
-        Dim NViews As Integer = lstSharePrices.Items.Count 'The number of views in the Financials list.
+        Dim NViews As Integer = lstSharePrices.Items.Count 'The number of views in the Share Prices list.
         If NViews = 0 Then
             lstSharePrices.Items.Add("")
             Dim NewSettings As New DataViewSettings
@@ -1876,6 +3805,8 @@ Public Class Main
             Dim NewSettings As New DataViewSettings
             SharePricesSettings.List.Add(NewSettings)
             OpenSharePricesFormNo(1) 'Open the new blank view in the new second position.
+            SharePricesFormList(1).DataSummary = "New Share Price Data View"
+            SharePricesFormList(1).Version = "Version 1"
         Else
             If SelectedIndex >= 0 Then
                 If SelectedIndex = NViews - 1 Then 'Last item selected
@@ -1883,14 +3814,17 @@ Public Class Main
                     lstSharePrices.Items.Add("")
                     Dim NewSettings As New DataViewSettings
                     SharePricesSettings.List.Add(NewSettings)
-                    'OpenFinancialsFormNo(NViews + 1)
                     OpenSharePricesFormNo(NViews)
+                    SharePricesFormList(NViews).DataSummary = "New Share Price Data View"
+                    SharePricesFormList(NViews).Version = "Version 1"
                 Else
                     lstSharePrices.Items.Insert(SelectedIndex + 1, "")
-                    'Insert a new Settings entry in FinancialSettings:
+                    'Insert a new Settings entry in SharePricesSettings:
                     Dim NewSettings As New DataViewSettings
                     SharePricesSettings.List.Insert(SelectedIndex + 1, NewSettings)
                     OpenSharePricesFormNo(SelectedIndex + 1)
+                    SharePricesFormList(SelectedIndex + 1).DataSummary = "New Share Price Data View"
+                    SharePricesFormList(SelectedIndex + 1).Version = "Version 1"
                 End If
             Else
                 'No item selected
@@ -1899,9 +3833,25 @@ Public Class Main
                 Dim NewSettings As New DataViewSettings
                 SharePricesSettings.List.Add(NewSettings)
                 OpenSharePricesFormNo(NViews + 1)
+                SharePricesFormList(NViews + 1).DataSummary = "New Share Price Data View"
+                SharePricesFormList(NViews + 1).Version = "Version 1"
             End If
         End If
     End Sub
+
+    Private Function AppendSharePricesView() As Integer
+        'Append a temporary Share Prices view to the list.
+        'Return the Form Number of the Data View
+
+        Dim NViews As Integer = lstSharePrices.Items.Count 'The number of views in the Share Prices list.
+        lstSharePrices.Items.Add("") 'Add an entry with a blank name. - Blank entries can be removed when the application is closed.
+        Dim NewSettings As New DataViewSettings
+        SharePricesSettings.List.Add(NewSettings)
+        OpenSharePricesFormNo(NViews + 1)
+        SharePricesFormList(NViews + 1).DataSummary = "New Share Price Data View"
+        SharePricesFormList(NViews + 1).Version = "Version 1"
+        Return NViews + 1
+    End Function
 
     Private Sub btnDeleteViewSP_Click(sender As Object, e As EventArgs) Handles btnDeleteViewSP.Click
         'Delete selected view
@@ -1909,10 +3859,16 @@ Public Class Main
         Dim SelectedIndex As Integer = lstSharePrices.SelectedIndex 'The index of the selected view.
         Dim NViews As Integer = lstSharePrices.Items.Count 'The number of views in the Share Prices list.
 
+        If SharePricesFormList.Count < SelectedIndex + 1 Then 'The Share Price data view is not being displayed.
+            lstSharePrices.Items.RemoveAt(SelectedIndex) 'Remove the entry from the list displayed on the form.
+            SharePricesSettings.List.RemoveAt(SelectedIndex)  'Delete the entry in SharePricesSettings
+            Exit Sub
+        End If
+
         If NViews = 0 Then
             'No Views to delete.
         Else
-            lstSharePrices.Items.RemoveAt(SelectedIndex) 'Remove the selected View in lstFinancials
+            lstSharePrices.Items.RemoveAt(SelectedIndex) 'Remove the selected View in lstSharePrices
             'Close the form if it is open:
             If IsNothing(SharePricesFormList(SelectedIndex)) Then
             Else
@@ -1921,6 +3877,14 @@ Public Class Main
             'Delete the entry in SharePricesSettings
             SharePricesSettings.List.RemoveAt(SelectedIndex)
         End If
+    End Sub
+
+    Private Sub btnViewSPUp_Click(sender As Object, e As EventArgs) Handles btnViewSPUp.Click
+
+    End Sub
+
+    Private Sub btnViewSPDwn_Click(sender As Object, e As EventArgs) Handles btnViewSPDwn.Click
+
     End Sub
 
     Private Sub btnSaveSharePricesDataList_Click(sender As Object, e As EventArgs) Handles btnSaveSharePricesDataList.Click
@@ -2013,81 +3977,6 @@ Public Class Main
         lstFinancials.Items(IndexNo) = Description
     End Sub
 
-    Private Sub btnInsertViewFinBefore_Click(sender As Object, e As EventArgs) Handles btnInsertViewFinBefore.Click
-        'Insert a new Financials view before the item selected in the financials list.
-        'If no item is selected, insert the new view at the start of the list.
-
-        Dim SelectedIndex As Integer = lstFinancials.SelectedIndex 'The index of the selected view.
-        Dim NViews As Integer = lstFinancials.Items.Count 'The number of views in the Financials list.
-        If NViews = 0 Then
-            lstFinancials.Items.Add("")
-            Dim NewSettings As New DataViewSettings
-            FinancialsSettings.List.Add(NewSettings)
-            OpenNewFinancialsForm()
-        ElseIf NViews = 1 Then
-            ''Move the existing View down one position and insert a blank View in the first position.
-            'lstFinancials.Items.Add(lstFinancials.Items(0).ToString)
-            'lstFinancials.Items(0) = ""
-
-            'Dim OldSettingsFilename As String = "FormSettings_" & ApplicationInfo.Name & "_Financials_0.xml" '"FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & "_" & FormNo & ".xml"
-            'Dim NewSettingsFileName As String = "FormSettings_" & ApplicationInfo.Name & "_Financials_1.xml"
-            'Project.RenameSettingsFile(OldSettingsFilename, NewSettingsFileName)
-
-            lstFinancials.Items.Insert(0, "")
-            'Insert a new Settings entry in FinancialSettings a position 0:
-            Dim NewSettings As New DataViewSettings
-            FinancialsSettings.List.Insert(0, NewSettings)
-
-            OpenFinancialsFormNo(0) 'Open the new blank view in the first position.
-        Else
-            If SelectedIndex >= 0 Then
-                'Move the last View down one position:
-                'lstFinancials.Items.Add(lstFinancials.Items(NViews - 1).ToString)
-
-                lstFinancials.Items.Insert(SelectedIndex, "")
-
-                'Dim OldSettingsFilename As String = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & NViews - 1 & ".xml" '"FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & "_" & FormNo & ".xml"
-                'Dim NewSettingsFileName As String = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & NViews & ".xml"
-                'Project.RenameSettingsFile(OldSettingsFilename, NewSettingsFileName)
-                'Dim I As Integer
-                'For I = NViews - 1 To SelectedIndex Step -1
-                '    lstFinancials.Items(I) = lstFinancials.Items(I - 1)
-                '    OldSettingsFilename = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & I - 1 & ".xml"
-                '    NewSettingsFileName = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & I & ".xml"
-                '    Project.RenameSettingsFile(OldSettingsFilename, NewSettingsFileName)
-                'Next
-
-                'Insert a new Settings entry in FinancialSettings:
-                Dim NewSettings As New DataViewSettings
-                FinancialsSettings.List.Insert(SelectedIndex, NewSettings)
-
-
-                'lstFinancials.Items(SelectedIndex) = ""
-                OpenFinancialsFormNo(SelectedIndex)
-            Else
-                'No item selected
-                ''Move the last View down one position:
-                'lstFinancials.Items.Add(lstFinancials.Items(NViews - 1).ToString)
-                'Dim OldSettingsFilename As String = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & NViews - 1 & ".xml" '"FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & "_" & FormNo & ".xml"
-                'Dim NewSettingsFileName As String = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & NViews & ".xml"
-                'Project.RenameSettingsFile(OldSettingsFilename, NewSettingsFileName)
-                'Dim I As Integer
-                'For I = NViews - 1 To 1 Step -1
-                '    lstFinancials.Items(I) = lstFinancials.Items(I - 1)
-                '    OldSettingsFilename = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & I - 1 & ".xml"
-                '    NewSettingsFileName = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & I & ".xml"
-                '    Project.RenameSettingsFile(OldSettingsFilename, NewSettingsFileName)
-                'Next
-                'lstFinancials.Items(0) = ""
-
-                lstFinancials.Items.Insert(0, "")
-                Dim NewSettings As New DataViewSettings
-                FinancialsSettings.List.Insert(0, NewSettings)
-
-                OpenFinancialsFormNo(0)
-            End If
-        End If
-    End Sub
 
     Private Sub btnInsertViewFinAfter_Click(sender As Object, e As EventArgs) Handles btnInsertViewFinAfter.Click
         'Insert a new Financials view after the item selected in the financials list.
@@ -2106,6 +3995,8 @@ Public Class Main
             Dim NewSettings As New DataViewSettings
             FinancialsSettings.List.Add(NewSettings)
             OpenFinancialsFormNo(1) 'Open the new blank view in the new second position.
+            FinancialsFormList(1).DataSummary = "New Financials Data View"
+            FinancialsFormList(1).Version = "Version 1"
         Else
             If SelectedIndex >= 0 Then
                 If SelectedIndex = NViews - 1 Then 'Last item selected
@@ -2113,32 +4004,17 @@ Public Class Main
                     lstFinancials.Items.Add("")
                     Dim NewSettings As New DataViewSettings
                     FinancialsSettings.List.Add(NewSettings)
-                    'OpenFinancialsFormNo(NViews + 1)
                     OpenFinancialsFormNo(NViews)
+                    FinancialsFormList(NViews).DataSummary = "New Financials Data View"
+                    FinancialsFormList(NViews).Version = "Version 1"
                 Else
-                    'Move the last View down one position:
-                    'lstFinancials.Items.Add(lstFinancials.Items(NViews - 1).ToString)
-
-                    'Dim OldSettingsFilename As String = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & NViews - 1 & ".xml"
-                    'Dim NewSettingsFileName As String = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & NViews & ".xml"
-                    'Project.RenameSettingsFile(OldSettingsFilename, NewSettingsFileName)
-                    'Dim I As Integer
-                    ''For I = NViews - 1 To SelectedIndex + 1 Step -1
-                    'For I = NViews - 1 To SelectedIndex + 2 Step -1
-                    '    lstFinancials.Items(I) = lstFinancials.Items(I - 1)
-                    '    OldSettingsFilename = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & I - 1 & ".xml"
-                    '    NewSettingsFileName = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & I & ".xml"
-                    '    Project.RenameSettingsFile(OldSettingsFilename, NewSettingsFileName)
-                    'Next
-
                     lstFinancials.Items.Insert(SelectedIndex + 1, "")
                     'Insert a new Settings entry in FinancialSettings:
                     Dim NewSettings As New DataViewSettings
                     FinancialsSettings.List.Insert(SelectedIndex + 1, NewSettings)
-
-                    ''Insert a new entry in lstFinancials:
-                    'lstFinancials.Items(SelectedIndex + 1) = ""
                     OpenFinancialsFormNo(SelectedIndex + 1)
+                    FinancialsFormList(SelectedIndex + 1).DataSummary = "New Financials Data View"
+                    FinancialsFormList(SelectedIndex + 1).Version = "Version 1"
                 End If
             Else
                 'No item selected
@@ -2147,16 +4023,24 @@ Public Class Main
                 Dim NewSettings As New DataViewSettings
                 FinancialsSettings.List.Add(NewSettings)
                 OpenFinancialsFormNo(NViews + 1)
+                FinancialsFormList(NViews + 1).DataSummary = "New Financials Data View"
+                FinancialsFormList(NViews + 1).Version = "Version 1"
             End If
         End If
-
     End Sub
+
+
 
     Private Sub btnDeleteViewFin_Click(sender As Object, e As EventArgs) Handles btnDeleteViewFin.Click
         'Delete selected view
 
         Dim SelectedIndex As Integer = lstFinancials.SelectedIndex 'The index of the selected view.
         Dim NViews As Integer = lstFinancials.Items.Count 'The number of views in the Financials list.
+
+        If FinancialsFormList.Count < SelectedIndex + 1 Then
+            lstFinancials.Items.RemoveAt(SelectedIndex)
+            Exit Sub
+        End If
 
         If NViews = 0 Then
             'No Views to delete.
@@ -2167,23 +4051,16 @@ Public Class Main
             Else
                 FinancialsFormList(SelectedIndex).CloseForm
             End If
-
-            ''Rename the settings files
-            'Dim I As Integer
-            'Dim OldSettingsFilename As String
-            'Dim NewSettingsFileName As String
-            'For I = SelectedIndex To NViews - 2
-            '    OldSettingsFilename = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & I + 1 & ".xml"
-            '    NewSettingsFileName = "FormSettings_" & ApplicationInfo.Name & "_Financials_" & I & ".xml"
-            '    Project.RenameSettingsFile(OldSettingsFilename, NewSettingsFileName)
-            'Next
-
             'Delete the entry in FinancialsSettings
             FinancialsSettings.List.RemoveAt(SelectedIndex)
-
         End If
+    End Sub
 
+    Private Sub btnViewFinUp_Click(sender As Object, e As EventArgs) Handles btnViewFinUp.Click
 
+    End Sub
+
+    Private Sub btnViewFinDwn_Click(sender As Object, e As EventArgs) Handles btnViewFinDwn.Click
 
     End Sub
 
@@ -2282,12 +4159,18 @@ Public Class Main
         'Delete selected view
 
         Dim SelectedIndex As Integer = lstCalculations.SelectedIndex 'The index of the selected view.
-        Dim NViews As Integer = lstCalculations.Items.Count 'The number of views in the Financials list.
+        Dim NViews As Integer = lstCalculations.Items.Count 'The number of views in the Calculations list.
+
+        'If CalculationsDataViewList.Count < SelectedIndex + 1 Then
+        If CalculationsFormList.Count < SelectedIndex + 1 Then
+            lstCalculations.Items.RemoveAt(SelectedIndex)
+            Exit Sub
+        End If
 
         If NViews = 0 Then
             'No Views to delete.
         Else
-            lstCalculations.Items.RemoveAt(SelectedIndex) 'Remove the selected View in lstFinancials
+            lstCalculations.Items.RemoveAt(SelectedIndex) 'Remove the selected View in lstCalculations
             'Close the form if it is open:
             If SelectedIndex > CalculationsFormList.Count - 1 Then
                 'No entry exists in the CalculationsFormList at SelectedIndex
@@ -2297,47 +4180,11 @@ Public Class Main
             Else
                 CalculationsFormList(SelectedIndex).CloseForm
             End If
-
             'Delete the entry in CalculationsSettings
             CalculationsSettings.List.RemoveAt(SelectedIndex)
-
         End If
     End Sub
 
-    Private Sub btnInsertViewCalcsBefore_Click(sender As Object, e As EventArgs) Handles btnInsertViewCalcsBefore.Click
-        'Insert a new Calculations view before the item selected in the calculations list.
-        'If no item is selected, insert the new view at the start of the list.
-
-        Dim SelectedIndex As Integer = lstCalculations.SelectedIndex 'The index of the selected view.
-        Dim NViews As Integer = lstCalculations.Items.Count 'The number of views in the Calculations list.
-        If NViews = 0 Then
-            lstCalculations.Items.Add("")
-            Dim NewSettings As New DataViewSettings
-            CalculationsSettings.List.Add(NewSettings)
-            OpenNewCalculationsForm()
-        ElseIf NViews = 1 Then
-            'Insert a new Settings entry in CalculationsSettings a position 0:
-            lstCalculations.Items.Insert(0, "")
-            Dim NewSettings As New DataViewSettings
-            CalculationsSettings.List.Insert(0, NewSettings)
-
-            OpenCalculationsFormNo(0) 'Open the new blank view in the first position.
-        Else
-            If SelectedIndex >= 0 Then
-                lstCalculations.Items.Insert(SelectedIndex, "")
-                'Insert a new Settings entry in FinancialSettings:
-                Dim NewSettings As New DataViewSettings
-                CalculationsSettings.List.Insert(SelectedIndex, NewSettings)
-                OpenCalculationsFormNo(SelectedIndex)
-            Else
-                'No item selected
-                lstCalculations.Items.Insert(0, "")
-                Dim NewSettings As New DataViewSettings
-                CalculationsSettings.List.Insert(0, NewSettings)
-                OpenCalculationsFormNo(0)
-            End If
-        End If
-    End Sub
 
     Private Sub btnInsertViewCalcsAfter_Click(sender As Object, e As EventArgs) Handles btnInsertViewCalcsAfter.Click
         'Insert a new Calculations view after the item selected in the calculations list.
@@ -2356,6 +4203,8 @@ Public Class Main
             Dim NewSettings As New DataViewSettings
             CalculationsSettings.List.Add(NewSettings)
             OpenCalculationsFormNo(1) 'Open the new blank view in the new second position.
+            CalculationsFormList(1).DataSummary = "New Calculations Data View"
+            CalculationsFormList(1).Version = "Version 1"
         Else
             If SelectedIndex >= 0 Then
                 If SelectedIndex = NViews - 1 Then 'Last item selected
@@ -2364,12 +4213,16 @@ Public Class Main
                     Dim NewSettings As New DataViewSettings
                     CalculationsSettings.List.Add(NewSettings)
                     OpenCalculationsFormNo(NViews)
+                    CalculationsFormList(NViews).DataSummary = "New Calculations Data View"
+                    CalculationsFormList(NViews).Version = "Version 1"
                 Else
                     'Insert a new Settings entry in FinancialSettings:
                     lstCalculations.Items.Insert(SelectedIndex + 1, "")
                     Dim NewSettings As New DataViewSettings
                     CalculationsSettings.List.Insert(SelectedIndex + 1, NewSettings)
                     OpenCalculationsFormNo(SelectedIndex + 1)
+                    CalculationsFormList(SelectedIndex + 1).DataSummary = "New Calculations Data View"
+                    CalculationsFormList(SelectedIndex + 1).Version = "Version 1"
                 End If
             Else
                 'No item selected
@@ -2378,6 +4231,8 @@ Public Class Main
                 Dim NewSettings As New DataViewSettings
                 CalculationsSettings.List.Add(NewSettings)
                 OpenCalculationsFormNo(NViews + 1)
+                CalculationsFormList(NViews + 1).DataSummary = "New Calculations Data View"
+                CalculationsFormList(NViews + 1).Version = "Version 1"
             End If
         End If
     End Sub
@@ -2490,7 +4345,6 @@ Public Class Main
 
         dgvCopyData.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
         dgvCopyData.Columns.Clear()
-        'dgvCopyData.Rows.Clear()
         txtCopyDataSettings.Text = CopyDataSettingsFile
 
         Dim ComboBoxCol0 As New DataGridViewComboBoxColumn
@@ -2498,29 +4352,32 @@ Public Class Main
         dgvCopyData.Columns(0).HeaderText = "Input Column"
         dgvCopyData.Columns(0).Width = 160
 
-        Select Case cmbCopyDataInputDb.SelectedItem.ToString
-            Case "Share Prices"
-                If cmbCopyDataInputData.SelectedIndex > -1 Then
-                    For Each item In SharePricesSettings.List(cmbCopyDataInputData.SelectedIndex).TableCols
-                        ComboBoxCol0.Items.Add(item)
-                    Next
-                    txtCopyDataInputQuery.Text = SharePricesSettings.List(cmbCopyDataInputData.SelectedIndex).Query
-                End If
-            Case "Financials"
-                If cmbCopyDataInputData.SelectedIndex > -1 Then
-                    For Each item In FinancialsSettings.List(cmbCopyDataInputData.SelectedIndex).TableCols
-                        ComboBoxCol0.Items.Add(item)
-                    Next
-                    txtCopyDataInputQuery.Text = FinancialsSettings.List(cmbCopyDataInputData.SelectedIndex).Query
-                End If
-            Case "Calculations"
-                If cmbCopyDataInputData.SelectedIndex > -1 Then
-                    For Each item In CalculationsSettings.List(cmbCopyDataInputData.SelectedIndex).TableCols
-                        ComboBoxCol0.Items.Add(item)
-                    Next
-                    txtCopyDataInputQuery.Text = CalculationsSettings.List(cmbCopyDataInputData.SelectedIndex).Query
-                End If
-        End Select
+        If cmbCopyDataInputDb.SelectedIndex = -1 Then
+        Else
+            Select Case cmbCopyDataInputDb.SelectedItem.ToString
+                Case "Share Prices"
+                    If cmbCopyDataInputData.SelectedIndex > -1 Then
+                        For Each item In SharePricesSettings.List(cmbCopyDataInputData.SelectedIndex).TableCols
+                            ComboBoxCol0.Items.Add(item)
+                        Next
+                        txtCopyDataInputQuery.Text = SharePricesSettings.List(cmbCopyDataInputData.SelectedIndex).Query
+                    End If
+                Case "Financials"
+                    If cmbCopyDataInputData.SelectedIndex > -1 Then
+                        For Each item In FinancialsSettings.List(cmbCopyDataInputData.SelectedIndex).TableCols
+                            ComboBoxCol0.Items.Add(item)
+                        Next
+                        txtCopyDataInputQuery.Text = FinancialsSettings.List(cmbCopyDataInputData.SelectedIndex).Query
+                    End If
+                Case "Calculations"
+                    If cmbCopyDataInputData.SelectedIndex > -1 Then
+                        For Each item In CalculationsSettings.List(cmbCopyDataInputData.SelectedIndex).TableCols
+                            ComboBoxCol0.Items.Add(item)
+                        Next
+                        txtCopyDataInputQuery.Text = CalculationsSettings.List(cmbCopyDataInputData.SelectedIndex).Query
+                    End If
+            End Select
+        End If
 
         Dim ComboBoxCol1 As New DataGridViewComboBoxColumn
         dgvCopyData.Columns.Add(ComboBoxCol1)
@@ -2573,12 +4430,6 @@ Public Class Main
         Else
             Dim XDoc As System.Xml.Linq.XDocument
             Project.ReadXmlData(CopyDataSettingsFile, XDoc)
-
-            'Don't update these selections: (Only dgvCopyData is being updated.)
-            'If XDoc.<CopyColumnsSettings>.<InputDatabase>.Value <> Nothing Then cmbCopyDataInputDb.SelectedIndex = cmbCopyDataInputDb.FindStringExact(XDoc.<CopyColumnsSettings>.<InputDatabase>.Value)
-            'If XDoc.<CopyColumnsSettings>.<InputData>.Value <> Nothing Then cmbCopyDataInputData.SelectedIndex = cmbCopyDataInputData.FindStringExact(XDoc.<CopyColumnsSettings>.<InputData>.Value)
-            'If XDoc.<CopyColumnsSettings>.<OutputDatabase>.Value <> Nothing Then cmbCopyDataOutputDb.SelectedIndex = cmbCopyDataOutputDb.FindStringExact(XDoc.<CopyColumnsSettings>.<OutputDatabase>.Value)
-            'If XDoc.<CopyColumnsSettings>.<OutputTable>.Value <> Nothing Then cmbCopyDataOutputData.SelectedIndex = cmbCopyDataOutputData.FindStringExact(XDoc.<CopyColumnsSettings>.<OutputTable>.Value)
 
             dgvCopyData.Rows.Clear()
 
@@ -2671,7 +4522,7 @@ Public Class Main
         'Save the Copy Data Settings.
 
         If Trim(txtCopyDataSettings.Text) = "" Then
-            Message.AddWarning("No file name has been sepcified!" & vbCrLf)
+            Message.AddWarning("No file name has been specified!" & vbCrLf)
         Else
             If txtCopyDataSettings.Text.EndsWith(".CopyColumns") Then
                 txtCopyDataSettings.Text = Trim(txtCopyDataSettings.Text)
@@ -2750,11 +4601,7 @@ Public Class Main
 
         CopyDataSettingsFile = ""
         txtCopyDataSettings.Text = ""
-        'cmbCopyDataInputDb.SelectedIndex = -1
-        'cmbCopyDataInputData.SelectedIndex = -1
         cmbCopyDataInputData.SelectedIndex = 0
-        'cmbCopyDataOutputDb.SelectedIndex = -1
-        'cmbCopyDataOutputData.SelectedIndex = -1
         cmbCopyDataOutputData.SelectedIndex = 0
         dgvCopyData.Rows.Clear()
 
@@ -2828,7 +4675,6 @@ Public Class Main
                 For I = 1 To NCols
                     newRow(OutCols(I)) = item(InCols(I))
                 Next
-                'Message.Add("New ASX_Code: " & newRow("ASX_Code") & "  New Report_Date: " & newRow("Report_Date") & vbCrLf)
                 dsOutput.Tables("myData").Rows.Add(newRow)
             Next
 
@@ -2866,7 +4712,6 @@ Public Class Main
 
         Select Case cmbCopyDataInputDb.SelectedItem.ToString
             Case "Share Prices"
-                'Query = SharePricesSettings.List(cmbCopyDataInputData.SelectedIndex).Query
                 Query = txtCopyDataInputQuery.Text
                 connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & SharePriceDbPath
                 myConnection.ConnectionString = connString
@@ -2876,7 +4721,6 @@ Public Class Main
                 da.Fill(dsInput, "myData")
                 myConnection.Close()
             Case "Financials"
-                'Query = FinancialsSettings.List(cmbCopyDataInputData.SelectedIndex).Query
                 Query = txtCopyDataInputQuery.Text
                 connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & FinancialsDbPath
                 myConnection.ConnectionString = connString
@@ -2886,7 +4730,6 @@ Public Class Main
                 da.Fill(dsInput, "myData")
                 myConnection.Close()
             Case "Calculations"
-                'Query = FinancialsSettings.List(cmbCopyDataInputData.SelectedIndex).Query
                 Query = txtCopyDataInputQuery.Text
                 connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & CalculationsDbPath
                 myConnection.ConnectionString = connString
@@ -2906,7 +4749,6 @@ Public Class Main
 
         Select Case cmbCopyDataOutputDb.SelectedItem.ToString
             Case "Share Prices"
-                'outputQuery = SharePricesSettings.List(cmbCopyDataOutputData.SelectedIndex).Query
                 outputQuery = txtCopyDataOutputQuery.Text
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & SharePriceDbPath
                 outputConnection.ConnectionString = outputConnString
@@ -2917,7 +4759,6 @@ Public Class Main
                 outputDa.Fill(dsOutput, "myData")
                 outputConnection.Close()
             Case "Financials"
-                'outputQuery = FinancialsSettings.List(cmbCopyDataOutputData.SelectedIndex).Query
                 outputQuery = txtCopyDataOutputQuery.Text
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & FinancialsDbPath
                 outputConnection.ConnectionString = outputConnString
@@ -2928,7 +4769,6 @@ Public Class Main
                 outputDa.Fill(dsOutput, "myData")
                 outputConnection.Close()
             Case "Calculations"
-                'outputQuery = CalculationsSettings.List(cmbCopyDataOutputData.SelectedIndex).Query
                 outputQuery = txtCopyDataOutputQuery.Text
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & CalculationsDbPath
                 outputConnection.ConnectionString = outputConnString
@@ -3034,53 +4874,63 @@ Public Class Main
         dgvSelectData.Columns.Add(ComboBoxCol0)
         dgvSelectData.Columns(0).HeaderText = "Input Column"
 
-        Select Case cmbSelectDataInputDb.SelectedItem.ToString
-            Case "Share Prices"
-                For Each item In SharePricesSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
-                    ComboBoxCol0.Items.Add(item)
-                Next
-                txtSelectDataInputQuery.Text = SharePricesSettings.List(cmbSelectDataInputData.SelectedIndex).Query
-            Case "Financials"
-                For Each item In FinancialsSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
-                    ComboBoxCol0.Items.Add(item)
-                Next
-                txtSelectDataInputQuery.Text = FinancialsSettings.List(cmbSelectDataInputData.SelectedIndex).Query
-            Case "Calculations"
-                For Each item In CalculationsSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
-                    ComboBoxCol0.Items.Add(item)
-                Next
-                txtSelectDataInputQuery.Text = CalculationsSettings.List(cmbSelectDataInputData.SelectedIndex).Query
-        End Select
+        If cmbSelectDataInputDb.SelectedIndex = -1 Then
+        Else
+            If cmbSelectDataInputData.SelectedIndex = -1 Then
+            Else
+                Select Case cmbSelectDataInputDb.SelectedItem.ToString
+                    Case "Share Prices"
+                        For Each item In SharePricesSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
+                            ComboBoxCol0.Items.Add(item)
+                        Next
+                        txtSelectDataInputQuery.Text = SharePricesSettings.List(cmbSelectDataInputData.SelectedIndex).Query
+                    Case "Financials"
+                        For Each item In FinancialsSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
+                            ComboBoxCol0.Items.Add(item)
+                        Next
+                        txtSelectDataInputQuery.Text = FinancialsSettings.List(cmbSelectDataInputData.SelectedIndex).Query
+                    Case "Calculations"
+                        For Each item In CalculationsSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
+                            ComboBoxCol0.Items.Add(item)
+                        Next
+                        txtSelectDataInputQuery.Text = CalculationsSettings.List(cmbSelectDataInputData.SelectedIndex).Query
+                End Select
+            End If
+        End If
 
         Dim ComboBoxCol1 As New DataGridViewComboBoxColumn
         dgvSelectData.Columns.Add(ComboBoxCol1)
         dgvSelectData.Columns(1).HeaderText = "Output Column"
-        'dgvSelectData.Columns(1).Width = 160
 
         If cmbSelectDataOutputDb.SelectedIndex = -1 Then
-            cmbSelectDataOutputDb.SelectedIndex = 0
-        End If
-        If cmbSelectDataOutputData.SelectedIndex = -1 Then
-            cmbSelectDataOutputData.SelectedIndex = 0
+            'cmbSelectDataOutputDb.SelectedIndex = 0
         End If
 
-        Select Case cmbSelectDataOutputDb.SelectedItem.ToString
-            Case "Share Prices"
-                For Each item In SharePricesSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
-                    ComboBoxCol1.Items.Add(item)
-                Next
-                txtSelectDataOutputQuery.Text = SharePricesSettings.List(cmbSelectDataOutputData.SelectedIndex).Query
-            Case "Financials"
-                For Each item In FinancialsSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
-                    ComboBoxCol1.Items.Add(item)
-                Next
-                txtSelectDataOutputQuery.Text = FinancialsSettings.List(cmbSelectDataOutputData.SelectedIndex).Query
-            Case "Calculations"
-                For Each item In CalculationsSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
-                    ComboBoxCol1.Items.Add(item)
-                Next
-                txtSelectDataOutputQuery.Text = CalculationsSettings.List(cmbSelectDataOutputData.SelectedIndex).Query
-        End Select
+        If cmbSelectDataOutputData.SelectedIndex = -1 Then
+            'cmbSelectDataOutputData.SelectedIndex = 0
+        Else
+            If cmbSelectDataOutputDb.SelectedIndex = -1 Then
+            Else
+                Select Case cmbSelectDataOutputDb.SelectedItem.ToString
+                    Case "Share Prices"
+                        For Each item In SharePricesSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
+                            ComboBoxCol1.Items.Add(item)
+                        Next
+                        txtSelectDataOutputQuery.Text = SharePricesSettings.List(cmbSelectDataOutputData.SelectedIndex).Query
+                    Case "Financials"
+                        For Each item In FinancialsSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
+                            ComboBoxCol1.Items.Add(item)
+                        Next
+                        txtSelectDataOutputQuery.Text = FinancialsSettings.List(cmbSelectDataOutputData.SelectedIndex).Query
+                    Case "Calculations"
+                        For Each item In CalculationsSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
+                            ComboBoxCol1.Items.Add(item)
+                        Next
+                        txtSelectDataOutputQuery.Text = CalculationsSettings.List(cmbSelectDataOutputData.SelectedIndex).Query
+                End Select
+            End If
+        End If
+
 
         'Set up dgvSelectConstraints ---------------------------------------------
         dgvSelectConstraints.Columns.Clear()
@@ -3088,48 +4938,54 @@ Public Class Main
         Dim ComboBoxCol20 As New DataGridViewComboBoxColumn
         dgvSelectConstraints.Columns.Add(ComboBoxCol20)
         dgvSelectConstraints.Columns(0).HeaderText = "WHERE Input Column"
-        'dgvSelectConstraints.Columns(0).Width = 160
 
-        Select Case cmbSelectDataInputDb.SelectedItem.ToString
-            Case "Share Prices"
-                For Each item In SharePricesSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
-                    ComboBoxCol20.Items.Add(item)
-                Next
-            Case "Financials"
-                For Each item In FinancialsSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
-                    ComboBoxCol20.Items.Add(item)
-                Next
-            Case "Calculations"
-                For Each item In CalculationsSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
-                    ComboBoxCol20.Items.Add(item)
-                Next
-        End Select
-
+        If cmbSelectDataInputDb.SelectedIndex = -1 Then
+        Else
+            If cmbSelectDataInputData.SelectedIndex = -1 Then
+            Else
+                Select Case cmbSelectDataInputDb.SelectedItem.ToString
+                    Case "Share Prices"
+                        For Each item In SharePricesSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
+                            ComboBoxCol20.Items.Add(item)
+                        Next
+                    Case "Financials"
+                        For Each item In FinancialsSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
+                            ComboBoxCol20.Items.Add(item)
+                        Next
+                    Case "Calculations"
+                        For Each item In CalculationsSettings.List(cmbSelectDataInputData.SelectedIndex).TableCols
+                            ComboBoxCol20.Items.Add(item)
+                        Next
+                End Select
+            End If
+        End If
 
         Dim ComboBoxCol21 As New DataGridViewComboBoxColumn
         dgvSelectConstraints.Columns.Add(ComboBoxCol21)
         dgvSelectConstraints.Columns(1).HeaderText = "= Output Column"
 
-        Select Case cmbSelectDataOutputDb.SelectedItem.ToString
-            Case "Share Prices"
-                For Each item In SharePricesSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
-                    ComboBoxCol21.Items.Add(item)
-                Next
-            Case "Financials"
-                For Each item In FinancialsSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
-                    ComboBoxCol21.Items.Add(item)
-                Next
-            Case "Calculations"
-                For Each item In CalculationsSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
-                    ComboBoxCol21.Items.Add(item)
-                Next
-        End Select
+        If cmbSelectDataOutputDb.SelectedIndex = -1 Then
+        Else
+            If cmbSelectDataOutputData.SelectedIndex = -1 Then
+            Else
+                Select Case cmbSelectDataOutputDb.SelectedItem.ToString
+                    Case "Share Prices"
+                        For Each item In SharePricesSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
+                            ComboBoxCol21.Items.Add(item)
+                        Next
+                    Case "Financials"
+                        For Each item In FinancialsSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
+                            ComboBoxCol21.Items.Add(item)
+                        Next
+                    Case "Calculations"
+                        For Each item In CalculationsSettings.List(cmbSelectDataOutputData.SelectedIndex).TableCols
+                            ComboBoxCol21.Items.Add(item)
+                        Next
+                End Select
+            End If
+        End If
 
-        'NOTE: Dont load the saved settings because different settings may be required!!!
-        'LoadCopyColumnsSettingsFile()
-        'LoadSelectDataSettingsFile() 
-
-        RestoreSelectDataSelections
+        RestoreSelectDataSelections()
     End Sub
 
     Private Sub RestoreSelectDataSelections()
@@ -3140,12 +4996,6 @@ Public Class Main
         Else
             Dim XDoc As System.Xml.Linq.XDocument
             Project.ReadXmlData(SelectDataSettingsFile, XDoc)
-
-            'Don't update these selections: (Only dgvCopyData is being updated.)
-            'If XDoc.<CopyColumnsSettings>.<InputDatabase>.Value <> Nothing Then cmbCopyDataInputDb.SelectedIndex = cmbCopyDataInputDb.FindStringExact(XDoc.<CopyColumnsSettings>.<InputDatabase>.Value)
-            'If XDoc.<CopyColumnsSettings>.<InputData>.Value <> Nothing Then cmbCopyDataInputData.SelectedIndex = cmbCopyDataInputData.FindStringExact(XDoc.<CopyColumnsSettings>.<InputData>.Value)
-            'If XDoc.<CopyColumnsSettings>.<OutputDatabase>.Value <> Nothing Then cmbCopyDataOutputDb.SelectedIndex = cmbCopyDataOutputDb.FindStringExact(XDoc.<CopyColumnsSettings>.<OutputDatabase>.Value)
-            'If XDoc.<CopyColumnsSettings>.<OutputTable>.Value <> Nothing Then cmbCopyDataOutputData.SelectedIndex = cmbCopyDataOutputData.FindStringExact(XDoc.<CopyColumnsSettings>.<OutputTable>.Value)
 
             dgvSelectData.Rows.Clear()
 
@@ -3159,7 +5009,6 @@ Public Class Main
             dgvSelectData.AutoResizeColumns()
 
             dgvSelectConstraints.Rows.Clear()
-            'dgvSelectConstraints.AutoResizeColumns()
             Dim settings2 = From item In XDoc.<SelectDataSettings>.<SelectConstraintsList>.<Constraint>
             For Each item In settings2
                 dgvSelectConstraints.Rows.Add(item.<WhereInputColumn>.Value, item.<EqualsOutputColumn>.Value)
@@ -3347,7 +5196,6 @@ Public Class Main
             If XDoc.<SelectDataSettings>.<OutputTable>.Value <> Nothing Then cmbSelectDataOutputData.SelectedIndex = cmbSelectDataOutputData.FindStringExact(XDoc.<SelectDataSettings>.<OutputTable>.Value)
 
             dgvSelectData.Rows.Clear()
-            'dgvSelectData.AutoResizeColumns()
             Dim settings = From item In XDoc.<SelectDataSettings>.<SelectDataList>.<CopyColumn>
             For Each item In settings
                 dgvSelectData.Rows.Add(item.<From>.Value, item.<To>.Value)
@@ -3357,7 +5205,6 @@ Public Class Main
 
 
             dgvSelectConstraints.Rows.Clear()
-            'dgvSelectConstraints.AutoResizeColumns()
             Dim settings2 = From item In XDoc.<SelectDataSettings>.<SelectConstraintsList>.<Constraint>
             For Each item In settings2
                 dgvSelectConstraints.Rows.Add(item.<WhereInputColumn>.Value, item.<EqualsOutputColumn>.Value)
@@ -3464,8 +5311,8 @@ Public Class Main
 
         Select Case cmbSelectDataInputDb.SelectedItem.ToString
             Case "Share Prices"
-                'Query = SharePricesSettings.List(cmbSelectDataInputData.SelectedIndex).Query
                 Query = txtSelectDataInputQuery.Text
+                Message.Add("Loading input Share Price data using query: " & Query & vbCrLf)
                 connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & SharePriceDbPath
                 myConnection.ConnectionString = connString
                 myConnection.Open()
@@ -3474,8 +5321,8 @@ Public Class Main
                 da.Fill(dsInput, "myData")
                 myConnection.Close()
             Case "Financials"
-                'Query = FinancialsSettings.List(cmbSelectDataInputData.SelectedIndex).Query
                 Query = txtSelectDataInputQuery.Text
+                Message.Add("Loading input Financial data using query: " & Query & vbCrLf)
                 connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & FinancialsDbPath
                 myConnection.ConnectionString = connString
                 myConnection.Open()
@@ -3484,8 +5331,8 @@ Public Class Main
                 da.Fill(dsInput, "myData")
                 myConnection.Close()
             Case "Calculations"
-                'Query = CalculationsSettings.List(cmbSelectDataInputData.SelectedIndex).Query
                 Query = txtSelectDataInputQuery.Text
+                Message.Add("Loading input Calculation data using query: " & Query & vbCrLf)
                 connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & CalculationsDbPath
                 myConnection.ConnectionString = connString
                 myConnection.Open()
@@ -3504,8 +5351,8 @@ Public Class Main
 
         Select Case cmbSelectDataOutputDb.SelectedItem.ToString
             Case "Share Prices"
-                'outputQuery = SharePricesSettings.List(cmbSelectDataOutputData.SelectedIndex).Query
                 outputQuery = txtSelectDataOutputQuery.Text
+                Message.Add("Loading output Share Price data using query: " & outputQuery & vbCrLf)
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & SharePriceDbPath
                 outputConnection.ConnectionString = outputConnString
                 outputConnection.Open()
@@ -3515,8 +5362,8 @@ Public Class Main
                 outputDa.Fill(dsOutput, "myData")
                 outputConnection.Close()
             Case "Financials"
-                'outputQuery = FinancialsSettings.List(cmbSelectDataOutputData.SelectedIndex).Query
                 outputQuery = txtSelectDataOutputQuery.Text
+                Message.Add("Loading output Financial data using query: " & outputQuery & vbCrLf)
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & FinancialsDbPath
                 outputConnection.ConnectionString = outputConnString
                 outputConnection.Open()
@@ -3526,8 +5373,8 @@ Public Class Main
                 outputDa.Fill(dsOutput, "myData")
                 outputConnection.Close()
             Case "Calculations"
-                'outputQuery = CalculationsSettings.List(cmbSelectDataOutputData.SelectedIndex).Query
                 outputQuery = txtSelectDataOutputQuery.Text
+                Message.Add("Loading output Calculation data using query: " & outputQuery & vbCrLf)
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & CalculationsDbPath
                 outputConnection.ConnectionString = outputConnString
                 outputConnection.Open()
@@ -3552,7 +5399,6 @@ Public Class Main
 
         Try
             Dim SelectedInput = dsInput.Tables("myData").Select(txtSelectInput.Text)
-            'dgvDataSet.DataSource = SelectedInput(0)(0)
 
             txtCount.Text = SelectedInput.Count
         Catch ex As Exception
@@ -3615,9 +5461,7 @@ Public Class Main
             'List of columns to copy:
             Sequence.rtbSequence.SelectedText = "    <SelectDataList>" & vbCrLf
             dgvSelectData.AllowUserToAddRows = False 'This removes the last edit row from the DataGridView.
-            'Dim NRows As Integer = dgvSelectData.Rows.Count
             NRows = dgvSelectData.Rows.Count
-            'Dim RowNo As Integer
             For RowNo = 0 To NRows - 1
                 Sequence.rtbSequence.SelectedText = "      <CopyColumn>" & vbCrLf
                 Sequence.rtbSequence.SelectedText = "        <From>" & dgvSelectData.Rows(RowNo).Cells(0).Value & "</From>" & vbCrLf
@@ -3697,7 +5541,7 @@ Public Class Main
         dgvSimpleCalcsParameterList.Columns(1).Width = 70
         ComboBoxCol1.Items.Add("Variable")
         ComboBoxCol1.Items.Add("Constant")
-        'ComboBoxCol1.Items.Add("Date") 'NOTE: This modification was tried but won't work becauser the Param dictionary can store only single values and noty dates!!!
+        'ComboBoxCol1.Items.Add("Date") 'NOTE: This modification was tried but won't work becauser the Param dictionary can store only single values and not dates!!!
 
         Dim TextBoxCol2 As New DataGridViewTextBoxColumn
         dgvSimpleCalcsParameterList.Columns.Add(TextBoxCol2)
@@ -3728,38 +5572,30 @@ Public Class Main
         dgvSimpleCalcsInputData.Columns(1).HeaderText = "Input Column"
         dgvSimpleCalcsInputData.Columns(1).Width = 140
 
-        'If dsOutput.Tables.Count > 0 Then
-        '    'For Each item In dsInput.Tables("myData").Columns
-        '    For Each item In dsOutput.Tables("myData").Columns
-        '        ComboBoxCol21.Items.Add(item.Columnname)
-        '    Next
-        'End If
-
         If cmbSimpleCalcDb.SelectedIndex = -1 Then
             cmbSimpleCalcDb.SelectedIndex = 0
         End If
         If cmbSimpleCalcData.SelectedIndex = -1 Then
-            cmbSimpleCalcData.SelectedIndex = 0
+
+        Else
+            Select Case cmbSimpleCalcDb.SelectedItem.ToString
+                Case "Share Prices"
+                    For Each item In SharePricesSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
+                        ComboBoxCol21.Items.Add(item)
+                    Next
+                    txtSimpleCalcsQuery.Text = SharePricesSettings.List(cmbSimpleCalcData.SelectedIndex).Query
+                Case "Financials"
+                    For Each item In FinancialsSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
+                        ComboBoxCol21.Items.Add(item)
+                    Next
+                    txtSimpleCalcsQuery.Text = FinancialsSettings.List(cmbSimpleCalcData.SelectedIndex).Query
+                Case "Calculations"
+                    For Each item In CalculationsSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
+                        ComboBoxCol21.Items.Add(item)
+                    Next
+                    txtSimpleCalcsQuery.Text = CalculationsSettings.List(cmbSimpleCalcData.SelectedIndex).Query
+            End Select
         End If
-
-        Select Case cmbSimpleCalcDb.SelectedItem.ToString
-            Case "Share Prices"
-                For Each item In SharePricesSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
-                    ComboBoxCol21.Items.Add(item)
-                Next
-                txtSimpleCalcsQuery.Text = SharePricesSettings.List(cmbSimpleCalcData.SelectedIndex).Query
-            Case "Financials"
-                For Each item In FinancialsSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
-                    ComboBoxCol21.Items.Add(item)
-                Next
-                txtSimpleCalcsQuery.Text = FinancialsSettings.List(cmbSimpleCalcData.SelectedIndex).Query
-            Case "Calculations"
-                For Each item In CalculationsSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
-                    ComboBoxCol21.Items.Add(item)
-                Next
-                txtSimpleCalcsQuery.Text = CalculationsSettings.List(cmbSimpleCalcData.SelectedIndex).Query
-        End Select
-
 
         'Set up dgvSimpleCalcsCalculations ---------------------------------------------
         dgvSimpleCalcsCalculations.Columns.Clear()
@@ -3823,46 +5659,33 @@ Public Class Main
         dgvSimpleCalcsOutputData.Columns(1).HeaderText = "Output Column"
         dgvSimpleCalcsOutputData.Columns(1).Width = 140
 
-        'If dsOutput.Tables.Count > 0 Then
-        '    'For Each item In dsInput.Tables("myData").Columns
-        '    For Each item In dsOutput.Tables("myData").Columns
-        '        ComboBoxCol41.Items.Add(item.Columnname)
-        '    Next
-        'End If
-
-        Select Case cmbSimpleCalcDb.SelectedItem.ToString
-            Case "Share Prices"
-                For Each item In SharePricesSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
-                    ComboBoxCol41.Items.Add(item)
-                Next
-            Case "Financials"
-                For Each item In FinancialsSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
-                    ComboBoxCol41.Items.Add(item)
-                Next
-            Case "Calculations"
-                For Each item In CalculationsSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
-                    ComboBoxCol41.Items.Add(item)
-                Next
-        End Select
+        If cmbSimpleCalcData.SelectedIndex = -1 Then
+        Else
+            Select Case cmbSimpleCalcDb.SelectedItem.ToString
+                Case "Share Prices"
+                    For Each item In SharePricesSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
+                        ComboBoxCol41.Items.Add(item)
+                    Next
+                Case "Financials"
+                    For Each item In FinancialsSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
+                        ComboBoxCol41.Items.Add(item)
+                    Next
+                Case "Calculations"
+                    For Each item In CalculationsSettings.List(cmbSimpleCalcData.SelectedIndex).TableCols
+                        ComboBoxCol41.Items.Add(item)
+                    Next
+            End Select
+        End If
 
         dgvSimpleCalcsParameterList.AllowUserToAddRows = True 'Allow user to add rows again.
         dgvSimpleCalcsCalculations.AllowUserToAddRows = True
         dgvSimpleCalcsInputData.AllowUserToAddRows = True
         dgvSimpleCalcsOutputData.AllowUserToAddRows = True
 
-        'dgvSimpleCalcsParameterList.AllowUserToResizeColumns = True
-        'dgvSimpleCalcsCalculations.AllowUserToResizeColumns = True
-        'dgvSimpleCalcsInputData.AllowUserToResizeColumns = True
-        'dgvSimpleCalcsOutputData.AllowUserToResizeColumns = True
-
         dgvSimpleCalcsParameterList.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
         dgvSimpleCalcsCalculations.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
         dgvSimpleCalcsInputData.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
         dgvSimpleCalcsOutputData.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
-
-        'LoadCopyColumnsSettingsFile()
-        'LoadSelectDataSettingsFile()
-        'LoadSimpleCalcsSettingsFile()
 
         RestoreSimpleCalcsSelections()
     End Sub
@@ -3876,10 +5699,6 @@ Public Class Main
         Else
             Dim XDoc As System.Xml.Linq.XDocument
             Project.ReadXmlData(SimpleCalcsSettingsFile, XDoc)
-
-            'Don't update these selections: (Only dgvSimpleCalcsParameterList, dgvSimpleCalcsInputData, dgvSimpleCalcsCalculations and dgvSimpleCalcsOutputData are being updated.)
-            'If XDoc.<SimpleCalculationsSettings>.<SelectedDatabase>.Value <> Nothing Then cmbSimpleCalcDb.SelectedIndex = cmbSimpleCalcDb.FindStringExact(XDoc.<SimpleCalculationsSettings>.<SelectedDatabase>.Value)
-            'If XDoc.<SimpleCalculationsSettings>.<SelectedTable>.Value <> Nothing Then cmbSimpleCalcData.SelectedIndex = cmbSimpleCalcData.FindStringExact(XDoc.<SimpleCalculationsSettings>.<SelectedTable>.Value)
 
             dgvSimpleCalcsParameterList.Rows.Clear()
             Dim settings = From item In XDoc.<SimpleCalculationsSettings>.<ParameterList>.<Parameter>
@@ -3915,11 +5734,6 @@ Public Class Main
             dgvSimpleCalcsOutputData.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells
             dgvSimpleCalcsOutputData.AutoResizeColumns()
 
-            'dgvSimpleCalcsParameterList.AllowUserToResizeColumns = True
-            'dgvSimpleCalcsCalculations.AllowUserToResizeColumns = True
-            'dgvSimpleCalcsInputData.AllowUserToResizeColumns = True
-            'dgvSimpleCalcsOutputData.AllowUserToResizeColumns = True
-
             dgvSimpleCalcsParameterList.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
             dgvSimpleCalcsCalculations.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
             dgvSimpleCalcsInputData.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
@@ -3929,7 +5743,6 @@ Public Class Main
     End Sub
 
     Private Sub cmbSimpleCalcDb_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbSimpleCalcDb.SelectedIndexChanged
-        'GetSimpleSelectedTableList()
         GetSimpleCalcsOutputDataList()
     End Sub
 
@@ -3963,77 +5776,6 @@ Public Class Main
 
     End Sub
 
-    'Private Sub GetSimpleSelectedTableList()
-    '    'Fill the cmbSimpleCalcTable list of data views.
-
-    '    'Database access for MS Access:
-    '    Dim connectionString As String 'Declare a connection string for MS Access - defines the database or server to be used.
-    '    Dim conn As System.Data.OleDb.OleDbConnection 'Declare a connection for MS Access - used by the Data Adapter to connect to and disconnect from the database.
-    '    Dim dt As DataTable
-
-    '    cmbSimpleCalcData.Items.Clear()
-    '    Dim I As Integer
-
-    '    Select Case cmbSimpleCalcDb.SelectedItem.ToString
-    '        Case "Share Prices"
-    '            ''SharePriceDataViewList
-    '            'For I = 0 To SharePricesSettings.NRecords - 1
-    '            '    'cmbSelectDataInputData.Items.Add(SharePricesSettings.List(I).Description)
-    '            '    cmbSelectDataOutputTable.Items.Add(SharePricesSettings.List(I).Description)
-    '            'Next
-    '            If SharePriceDbPath = "" Then
-    '                Message.AddWarning("No Share Prices database has been selected!" & vbCrLf)
-    '                Exit Sub
-    '            End If
-    '            'Access 2007+:
-    '            connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
-    '             "data source = " + SharePriceDbPath
-    '        Case "Financials"
-    '            ''FinancialsDataViewList
-    '            'For I = 0 To FinancialsSettings.NRecords - 1
-    '            '    'cmbCopyDataInputData.Items.Add(FinancialsSettings.List(I).Description)
-    '            '    cmbSelectDataOutputTable.Items.Add(FinancialsSettings.List(I).Description)
-    '            'Next
-    '            If FinancialsDbPath = "" Then
-    '                Message.AddWarning("No Financials database has been selected!" & vbCrLf)
-    '                Exit Sub
-    '            End If
-    '            'Access 2007+:
-    '            connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
-    '             "data source = " + FinancialsDbPath
-    '        Case "Calculations"
-    '            If CalculationsDbPath = "" Then
-    '                Message.AddWarning("No Calculations database has been selected!" & vbCrLf)
-    '                Exit Sub
-    '            End If
-    '            'Access 2007+:
-    '            connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
-    '             "data source = " + CalculationsDbPath
-    '    End Select
-
-    '    'Connect to the Access database:
-    '    conn = New System.Data.OleDb.OleDbConnection(connectionString)
-
-    '    Try
-    '        conn.Open()
-    '        Dim restrictions As String() = New String() {Nothing, Nothing, Nothing, "TABLE"} 'This restriction removes system tables
-    '        dt = conn.GetSchema("Tables", restrictions)
-
-    '        Dim dr As DataRow
-    '        'Dim I As Integer 'Loop index
-    '        Dim MaxI As Integer
-    '        MaxI = dt.Rows.Count
-    '        For I = 0 To MaxI - 1
-    '            dr = dt.Rows(0)
-    '            cmbSimpleCalcData.Items.Add(dt.Rows(I).Item(2).ToString)
-    '        Next I
-
-    '        conn.Close()
-
-    '    Catch ex As Exception
-    '        Message.AddWarning("Error reading list of tables in the selected database. " & ex.Message & vbCrLf)
-    '    End Try
-    'End Sub
 
     Private Sub btnSaveSimpleCalcSettings_Click(sender As Object, e As EventArgs) Handles btnSaveSimpleCalcSettings.Click
         'Save the Simple Calculations settings:
@@ -4153,11 +5895,6 @@ Public Class Main
             Next
             dgvSimpleCalcsOutputData.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells
             dgvSimpleCalcsOutputData.AutoResizeColumns()
-
-            'dgvSimpleCalcsParameterList.AllowUserToResizeColumns = True
-            'dgvSimpleCalcsCalculations.AllowUserToResizeColumns = True
-            'dgvSimpleCalcsInputData.AllowUserToResizeColumns = True
-            'dgvSimpleCalcsOutputData.AllowUserToResizeColumns = True
 
             dgvSimpleCalcsParameterList.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
             dgvSimpleCalcsCalculations.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
@@ -4311,12 +6048,6 @@ Public Class Main
         dgvSimpleCalcsInputData.Columns(1).HeaderText = "Input Column"
         dgvSimpleCalcsInputData.Columns(1).Width = 140
 
-        'If dsOutput.Tables.Count > 0 Then
-        '    For Each item In dsOutput.Tables("myData").Columns
-        '        ComboBoxCol21.Items.Add(item.Columnname)
-        '    Next
-        'End If
-
         If cmbSimpleCalcDb.SelectedIndex = -1 Then
             cmbSimpleCalcDb.SelectedIndex = 0
         End If
@@ -4350,7 +6081,6 @@ Public Class Main
         'Add the list of Parameters
         If dgvSimpleCalcsParameterList.RowCount > 0 Then
             For Each item In dgvSimpleCalcsParameterList.Rows
-                'ComboBoxCol40.Items.Add(item.Cells(0).Value)
                 If item.Cells(0).Value <> Nothing Then ComboBoxCol40.Items.Add(item.Cells(0).Value)
             Next
         End If
@@ -4359,12 +6089,6 @@ Public Class Main
         dgvSimpleCalcsOutputData.Columns.Add(ComboBoxCol41)
         dgvSimpleCalcsOutputData.Columns(1).HeaderText = "Output Column"
         dgvSimpleCalcsOutputData.Columns(1).Width = 140
-
-        'If dsOutput.Tables.Count > 0 Then
-        '    For Each item In dsOutput.Tables("myData").Columns
-        '        ComboBoxCol41.Items.Add(item.Columnname)
-        '    Next
-        'End If
 
         Select Case cmbSimpleCalcDb.SelectedItem.ToString
             Case "Share Prices"
@@ -4400,11 +6124,6 @@ Public Class Main
         dgvSimpleCalcsInputData.AllowUserToAddRows = True
         dgvSimpleCalcsOutputData.AllowUserToAddRows = True
 
-        'dgvSimpleCalcsParameterList.AllowUserToResizeColumns = True
-        'dgvSimpleCalcsCalculations.AllowUserToResizeColumns = True
-        'dgvSimpleCalcsInputData.AllowUserToResizeColumns = True
-        'dgvSimpleCalcsOutputData.AllowUserToResizeColumns = True
-
         dgvSimpleCalcsParameterList.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
         dgvSimpleCalcsCalculations.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
         dgvSimpleCalcsInputData.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
@@ -4415,53 +6134,6 @@ Public Class Main
     Private Sub dgvSimpleCalcsParameterList_LostFocus(sender As Object, e As EventArgs) Handles dgvSimpleCalcsParameterList.LostFocus
         UpdateSimpleCalcsParams()
     End Sub
-
-    'NOTE: The selected data will be loaded into dsOutput only when it is required for the calculations.
-    'Private Sub cmbSimpleCalcData_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbSimpleCalcData.SelectedIndexChanged
-    '    'The Simple Calculations output table has been selected.
-
-    '    'dsOutput will be used for the Input and Output data columns
-    '    dsOutput.Clear()
-    '    dsOutput.Tables.Clear()
-
-    '    Select Case cmbSimpleCalcDb.SelectedItem.ToString
-    '        Case "Share Prices"
-    '            outputQuery = "SELECT * FROM " & cmbSimpleCalcData.SelectedItem.ToString
-    '            outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & SharePriceDbPath
-    '            outputConnection.ConnectionString = outputConnString
-    '            outputConnection.Open()
-    '            outputDa = New OleDb.OleDbDataAdapter(outputQuery, outputConnection)
-    '            outputDa.MissingSchemaAction = MissingSchemaAction.AddWithKey
-    '            Dim outputCmdBuilder As New OleDb.OleDbCommandBuilder(outputDa)
-    '            outputDa.Fill(dsOutput, "myData")
-    '            outputConnection.Close()
-    '            SetUpSimpleCalculationsTab()
-    '        Case "Financials"
-    '            'Query = FinancialsSettings.List(cmbInputData.SelectedIndex).Query
-    '            outputQuery = "SELECT * FROM " & cmbSimpleCalcData.SelectedItem.ToString
-    '            outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & FinancialsDbPath
-    '            outputConnection.ConnectionString = outputConnString
-    '            outputConnection.Open()
-    '            outputDa = New OleDb.OleDbDataAdapter(outputQuery, outputConnection)
-    '            outputDa.MissingSchemaAction = MissingSchemaAction.AddWithKey
-    '            Dim outputCmdBuilder As New OleDb.OleDbCommandBuilder(outputDa)
-    '            outputDa.Fill(dsOutput, "myData")
-    '            outputConnection.Close()
-    '            SetUpSimpleCalculationsTab()
-    '        Case "Calculations"
-    '            outputQuery = "SELECT * FROM " & cmbSimpleCalcData.SelectedItem.ToString
-    '            outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & CalculationsDbPath
-    '            outputConnection.ConnectionString = outputConnString
-    '            outputConnection.Open()
-    '            outputDa = New OleDb.OleDbDataAdapter(outputQuery, outputConnection)
-    '            outputDa.MissingSchemaAction = MissingSchemaAction.AddWithKey
-    '            Dim outputCmdBuilder As New OleDb.OleDbCommandBuilder(outputDa)
-    '            outputDa.Fill(dsOutput, "myData")
-    '            outputConnection.Close()
-    '            SetUpSimpleCalculationsTab()
-    '    End Select
-
-    'End Sub
 
     Private Sub btnApplySimpleCalcSettings_Click(sender As Object, e As EventArgs) Handles btnApplySimpleCalcSettings.Click
         'Apply the Simple Calculations.
@@ -4655,8 +6327,6 @@ Public Class Main
         NewDbSingle.Value = Value
         NewDbSingle.NullValue = NullValue
         Return NewDbSingle
-        'GetDbSingle.Value = Value
-        'GetDbSingle.NullValue = NullValue
     End Function
 
     Private Function GetCalc(ByVal Input1 As String, ByVal Input2 As String, ByVal Operation As String, ByVal Output As String) As Calculation
@@ -4667,10 +6337,6 @@ Public Class Main
         NewCalculation.Operation = Operation
         NewCalculation.Output = Output
         Return NewCalculation
-        'GetCalc.Input1 = Input1
-        'GetCalc.Input2 = Input2
-        'GetCalc.Operation = Operation
-        'GetCalc.Output = Output
     End Function
 
     Private Function GetParamLocn(ByVal ParamName As String, ByVal ColName As String) As ParameterLocation
@@ -4679,9 +6345,6 @@ Public Class Main
         NewParamLocn.ParamName = ParamName
         NewParamLocn.ColName = ColName
         Return NewParamLocn
-
-        'GetParamLocn.ParamName = ParamName
-        'GetParamLocn.ColName = ColName
     End Function
 
     Private Sub btnAddSimpleCalcsToSequence_Click(sender As Object, e As EventArgs) Handles btnAddSimpleCalcsToSequence.Click
@@ -5005,11 +6668,8 @@ Public Class Main
 
         Select Case cmbDateCalcType.SelectedItem.ToString
             Case "Date at start of month"
-                'Dim MonthCol As String = cmbDateCalcParam1.SelectedItem.ToString
                 Dim MonthCol As String = cmbDateCalcParam1.Text
-                'Dim YearCol As String = cmbDateCalcParam2.SelectedItem.ToString
                 Dim YearCol As String = cmbDateCalcParam2.Text
-                'Dim DateCol As String = cmbDateCalcOutput.SelectedItem.ToString
                 Dim DateCol As String = cmbDateCalcOutput.Text
 
                 Dim Month As Integer
@@ -5042,11 +6702,8 @@ Public Class Main
                 Next
 
             Case "Date at end of month"
-                'Dim MonthCol As String = cmbDateCalcParam1.SelectedItem.ToString
                 Dim MonthCol As String = cmbDateCalcParam1.Text
-                'Dim YearCol As String = cmbDateCalcParam2.SelectedItem.ToString
                 Dim YearCol As String = cmbDateCalcParam2.Text
-                'Dim DateCol As String = cmbDateCalcOutput.SelectedItem.ToString
                 Dim DateCol As String = cmbDateCalcOutput.Text
 
                 Dim Month As Integer
@@ -5079,11 +6736,8 @@ Public Class Main
                 Next
 
             Case "Date of Start Date add N Days"
-                'Dim StartDateCol As String = cmbDateCalcParam1.SelectedItem.ToString
                 Dim StartDateCol As String = cmbDateCalcParam1.Text
-                'Dim NDaysCol As String = cmbDateCalcParam2.SelectedItem.ToString
                 Dim NDaysCol As String = cmbDateCalcParam2.Text
-                'Dim DateCol As String = cmbDateCalcOutput.SelectedItem.ToString
                 Dim DateCol As String = cmbDateCalcOutput.Text
 
                 Dim StartDate As DateTime
@@ -5116,11 +6770,8 @@ Public Class Main
                 Next
 
             Case "Date of Start Date minus N Days"
-                'Dim StartDateCol As String = cmbDateCalcParam1.SelectedItem.ToString
                 Dim StartDateCol As String = cmbDateCalcParam1.Text
-                'Dim NDaysCol As String = cmbDateCalcParam2.SelectedItem.ToString
                 Dim NDaysCol As String = cmbDateCalcParam2.Text
-                'Dim DateCol As String = cmbDateCalcOutput.SelectedItem.ToString
                 Dim DateCol As String = cmbDateCalcOutput.Text
 
                 Dim StartDate As DateTime
@@ -5169,21 +6820,6 @@ Public Class Main
 
                     item(DateCol) = FixedDate
 
-                    'If IsDBNull(item(StartDateCol)) Then
-                    '    'Write null value in output date column:
-                    '    item(DateCol) = DBNull.Value
-                    'Else
-                    '    If IsDBNull(item(NDaysCol)) Then
-                    '        'Write null value in output date column:
-                    '        item(DateCol) = DBNull.Value
-                    '    Else
-                    '        'Calculate date add NDays:
-                    '        StartDate = item(StartDateCol)
-                    '        NDays = item(NDaysCol)
-                    '        CalcDate = StartDate.AddDays(-NDays)
-                    '        item(DateCol) = CalcDate
-                    '    End If
-                    'End If
                 Next
 
             Case Else
@@ -5212,7 +6848,6 @@ Public Class Main
 
         Select Case cmbDateCalcDb.SelectedItem.ToString
             Case "Share Prices"
-                'outputQuery = SharePricesSettings.List(cmbDateCalcData.SelectedIndex).Query
                 outputQuery = txtDateCalcsQuery.Text
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & SharePriceDbPath
                 outputConnection.ConnectionString = outputConnString
@@ -5223,7 +6858,6 @@ Public Class Main
                 outputDa.Fill(dsOutput, "myData")
                 outputConnection.Close()
             Case "Financials"
-                'outputQuery = FinancialsSettings.List(cmbDateCalcData.SelectedIndex).Query
                 outputQuery = txtDateCalcsQuery.Text
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & FinancialsDbPath
                 outputConnection.ConnectionString = outputConnString
@@ -5234,7 +6868,6 @@ Public Class Main
                 outputDa.Fill(dsOutput, "myData")
                 outputConnection.Close()
             Case "Calculations"
-                'outputQuery = CalculationsSettings.List(cmbDateCalcData.SelectedIndex).Query
                 outputQuery = txtDateCalcsQuery.Text
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & CalculationsDbPath
                 outputConnection.ConnectionString = outputConnString
@@ -5469,7 +7102,6 @@ Public Class Main
         Dim ComboBoxCol1 As New DataGridViewComboBoxColumn
         dgvDateSelectData.Columns.Add(ComboBoxCol1)
         dgvDateSelectData.Columns(1).HeaderText = "Output Column"
-        'dgvSelectData.Columns(1).Width = 160
 
         If cmbDateSelectOutputDb.SelectedIndex = -1 Then
             cmbDateSelectOutputDb.SelectedIndex = 0
@@ -5541,13 +7173,6 @@ Public Class Main
                 Next
         End Select
 
-
-
-
-        'NOTE: Dont load the saved settings because different settings may be required!!!
-        'LoadCopyColumnsSettingsFile()
-        'LoadSelectDataSettingsFile() 
-
         'RestoreSelectDataSelections()
         RestoreDateSelectSelections()
 
@@ -5569,12 +7194,6 @@ Public Class Main
         Else
             Dim XDoc As System.Xml.Linq.XDocument
             Project.ReadXmlData(DateSelectSettingsFile, XDoc)
-
-            'Don't update these selections: (Only dgvCopyData is being updated.)
-            'If XDoc.<CopyColumnsSettings>.<InputDatabase>.Value <> Nothing Then cmbCopyDataInputDb.SelectedIndex = cmbCopyDataInputDb.FindStringExact(XDoc.<CopyColumnsSettings>.<InputDatabase>.Value)
-            'If XDoc.<CopyColumnsSettings>.<InputData>.Value <> Nothing Then cmbCopyDataInputData.SelectedIndex = cmbCopyDataInputData.FindStringExact(XDoc.<CopyColumnsSettings>.<InputData>.Value)
-            'If XDoc.<CopyColumnsSettings>.<OutputDatabase>.Value <> Nothing Then cmbCopyDataOutputDb.SelectedIndex = cmbCopyDataOutputDb.FindStringExact(XDoc.<CopyColumnsSettings>.<OutputDatabase>.Value)
-            'If XDoc.<CopyColumnsSettings>.<OutputTable>.Value <> Nothing Then cmbCopyDataOutputData.SelectedIndex = cmbCopyDataOutputData.FindStringExact(XDoc.<CopyColumnsSettings>.<OutputTable>.Value)
 
             dgvDateSelectData.Rows.Clear()
 
@@ -5636,7 +7255,7 @@ Public Class Main
     End Sub
 
     Private Sub cmbDateSelectOutputDb_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbDateSelectOutputDb.SelectedIndexChanged
-        GetDateSelectOutputDataList
+        GetDateSelectOutputDataList()
     End Sub
 
     Private Sub GetDateSelectOutputDataList()
@@ -5718,11 +7337,8 @@ Public Class Main
             Sequence.rtbSequence.SelectedText = "    <OutputQuery>" & txtDateSelOutputQuery.Text & "</OutputQuery>" & vbCrLf
 
             'Date Selection Type:
-            'Sequence.rtbSequence.SelectedText = "    <DateSelectionType>" & cmbDateSelectionType.SelectedItem.ToString & "</DateSelectionType>" & vbCrLf
             Sequence.rtbSequence.SelectedText = "    <DateSelectionType>" & cmbDateSelectionType.Text & "</DateSelectionType>" & vbCrLf
-            'Sequence.rtbSequence.SelectedText = "    <InputDateColumn>" & cmbDateSelInputDateCol.SelectedItem.ToString & "</InputDateColumn>" & vbCrLf
             Sequence.rtbSequence.SelectedText = "    <InputDateColumn>" & cmbDateSelInputDateCol.Text & "</InputDateColumn>" & vbCrLf
-            ' Sequence.rtbSequence.SelectedText = "    <OutputDateColumn>" & cmbDateSelOutputDateCol.SelectedItem.ToString & "</OutputDateColumn>" & vbCrLf
             Sequence.rtbSequence.SelectedText = "    <OutputDateColumn>" & cmbDateSelOutputDateCol.Text & "</OutputDateColumn>" & vbCrLf
 
             'Select constraints list:
@@ -5914,9 +7530,6 @@ Public Class Main
         'dsInput contains the input table
         'dsOutput contains the output table
 
-        'Message.Add("dsInput records: " & dsInput.Tables("myData").Rows.Count & vbCrLf)
-        'Message.Add("dsOutput records: " & dsOutput.Tables("myData").Rows.Count & vbCrLf)
-
         dgvDateSelectData.AllowUserToAddRows = False
         dgvDateSelectConstraints.AllowUserToAddRows = False
 
@@ -5959,15 +7572,12 @@ Public Class Main
                     For I = 2 To NCons
                         myQuery = myQuery & " And " & InCons(I) & " = '" & item(OutCons(I)) & "'"
                     Next
-                    'myQuery = myQuery & " And " & InputDateCol & " = '" & item(OutputDateCol) & "'"
-                    'myQuery = myQuery & " And " & InputDateCol & " = #" & item(OutputDateCol) & "#"
                     myQuery = myQuery & " And " & InputDateCol & " = #" & Format(item(OutputDateCol), "MM-dd-yyyy") & "#" 'Dates in a query must have this format!
 
                     Dim myRecords = dsInput.Tables("myData").Select(myQuery)
                     If myRecords.Count = 0 Then
                         Message.AddWarning("No records found with this constraint: " & myQuery & vbCrLf)
                     ElseIf myRecords.Count = 1 Then
-                        'Message.Add("One record found with this constraint: " & myQuery & vbCrLf)
                         For I = 1 To NCols
                             item(OutCols(I)) = myRecords(0).Item(InCols(I))
                         Next
@@ -5985,19 +7595,13 @@ Public Class Main
                     For I = 2 To NCons
                         myQuery = myQuery & " And " & InCons(I) & " = '" & item(OutCons(I)) & "'"
                     Next
-                    'myQuery = myQuery & " And " & InputDateCol & " > '" & item(OutputDateCol) & "'" & " Order By " & InputDateCol
-                    'myQuery = myQuery & " And " & InputDateCol & " > #" & item(OutputDateCol) & "#" & " Order By " & InputDateCol
-                    'myQuery = myQuery & " And " & InputDateCol & " > #" & item(OutputDateCol) & "#"
                     myQuery = myQuery & " And " & InputDateCol & " > #" & Format(item(OutputDateCol), "MM-dd-yyyy") & "#" 'Dates in a query must have this format!
-                    'mySort = InputDateCol & " DESC"
                     mySort = InputDateCol & " ASC"
 
-                    'Dim myRecords = dsInput.Tables("myData").Select(myQuery)
                     Dim myRecords = dsInput.Tables("myData").Select(myQuery, mySort)
                     If myRecords.Count = 0 Then
                         Message.AddWarning("No records found with this constraint: " & myQuery & vbCrLf)
                     ElseIf myRecords.Count = 1 Then
-                        'Message.Add("One record found with this constraint: " & myQuery & vbCrLf)
                         For I = 1 To NCols
                             item(OutCols(I)) = myRecords(0).Item(InCols(I))
                         Next
@@ -6019,14 +7623,9 @@ Public Class Main
                     For I = 2 To NCons
                         myQuery = myQuery & " And " & InCons(I) & " = '" & item(OutCons(I)) & "'"
                     Next
-                    'myQuery = myQuery & " And " & InputDateCol & " < '" & item(OutputDateCol) & "'" & " Order By '" & InputDateCol & "' Desc"
-                    'myQuery = myQuery & " And " & InputDateCol & " < #" & item(OutputDateCol) & "#" & " Order By " & InputDateCol & " Desc"
-                    'myQuery = myQuery & " And " & InputDateCol & " < #" & item(OutputDateCol) & "#"
                     myQuery = myQuery & " And " & InputDateCol & " < #" & Format(item(OutputDateCol), "MM-dd-yyyy") & "#" 'Dates in a query must have this format!
-                    'mySort = InputDateCol & " ASC"
                     mySort = InputDateCol & " DESC"
 
-                    'Dim myRecords = dsInput.Tables("myData").Select(myQuery)
                     Dim myRecords = dsInput.Tables("myData").Select(myQuery, mySort)
                     If myRecords.Count = 0 Then
                         Message.AddWarning("No records found with this constraint: " & myQuery & vbCrLf)
@@ -6036,7 +7635,6 @@ Public Class Main
                             item(OutCols(I)) = myRecords(0).Item(InCols(I))
                         Next
                     Else
-                        'Message.AddWarning("More than one record found with this constraint: " & myQuery & vbCrLf)
                         'Use the data from the first match
                         For I = 1 To NCols
                             item(OutCols(I)) = myRecords(0).Item(InCols(I))
@@ -6054,8 +7652,6 @@ Public Class Main
         Catch ex As Exception
             Message.AddWarning("Error updating database table: " & ex.Message & vbCrLf)
         End Try
-
-
 
         'Clear the data list when finished:
         dsInput.Clear()
@@ -6081,7 +7677,6 @@ Public Class Main
 
         Select Case cmbDateSelectInputDb.SelectedItem.ToString
             Case "Share Prices"
-                'Query = SharePricesSettings.List(cmbDateSelectInputData.SelectedIndex).Query
                 Query = txtDateSelInputQuery.Text
                 connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & SharePriceDbPath
                 myConnection.ConnectionString = connString
@@ -6091,7 +7686,6 @@ Public Class Main
                 da.Fill(dsInput, "myData")
                 myConnection.Close()
             Case "Financials"
-                'Query = FinancialsSettings.List(cmbDateSelectInputData.SelectedIndex).Query
                 Query = txtDateSelInputQuery.Text
                 connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & FinancialsDbPath
                 myConnection.ConnectionString = connString
@@ -6101,7 +7695,6 @@ Public Class Main
                 da.Fill(dsInput, "myData")
                 myConnection.Close()
             Case "Calculations"
-                'Query = CalculationsSettings.List(cmbDateSelectInputData.SelectedIndex).Query
                 Query = txtDateSelInputQuery.Text
                 connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & CalculationsDbPath
                 myConnection.ConnectionString = connString
@@ -6121,7 +7714,6 @@ Public Class Main
 
         Select Case cmbDateSelectOutputDb.SelectedItem.ToString
             Case "Share Prices"
-                'outputQuery = SharePricesSettings.List(cmbDateSelectOutputData.SelectedIndex).Query
                 outputQuery = txtDateSelOutputQuery.Text
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & SharePriceDbPath
                 outputConnection.ConnectionString = outputConnString
@@ -6132,7 +7724,6 @@ Public Class Main
                 outputDa.Fill(dsOutput, "myData")
                 outputConnection.Close()
             Case "Financials"
-                'outputQuery = FinancialsSettings.List(cmbDateSelectOutputData.SelectedIndex).Query
                 outputQuery = txtDateSelOutputQuery.Text
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & FinancialsDbPath
                 outputConnection.ConnectionString = outputConnString
@@ -6143,7 +7734,6 @@ Public Class Main
                 outputDa.Fill(dsOutput, "myData")
                 outputConnection.Close()
             Case "Calculations"
-                'outputQuery = CalculationsSettings.List(cmbDateSelectOutputData.SelectedIndex).Query
                 outputQuery = txtDateSelOutputQuery.Text
                 outputConnString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & CalculationsDbPath
                 outputConnection.ConnectionString = outputConnString
@@ -6297,9 +7887,6 @@ Public Class Main
             Next
         End If
 
-
-
-
         If cmbDailyPriceCalcType.SelectedIndex > -1 Then
             dgvDailyPricesInput.AllowUserToAddRows = False
             dgvDailyPricesInput.Rows.Clear()
@@ -6355,21 +7942,21 @@ Public Class Main
         Select Case cmbDailyPriceInputDb.SelectedItem.ToString
             Case "Share Prices"
                 If SharePriceDbPath = "" Then
-                    Message.AddWarning("No database selected!" & vbCrLf)
+                    Message.AddWarning("Calculations: Daily Prices: No input Share Prices database selected!" & vbCrLf)
                     Exit Sub
                 Else
                     connectionString = "provider=Microsoft.ACE.OLEDB.12.0;data source = " + SharePriceDbPath
                 End If
             Case "Financials"
                 If FinancialsDbPath = "" Then
-                    Message.AddWarning("No database selected!" & vbCrLf)
+                    Message.AddWarning("Calculations: Daily Prices: No input Financials database selected!" & vbCrLf)
                     Exit Sub
                 Else
                     connectionString = "provider=Microsoft.ACE.OLEDB.12.0;data source = " + FinancialsDbPath
                 End If
             Case "Calculations"
                 If CalculationsDbPath = "" Then
-                    Message.AddWarning("No database selected!" & vbCrLf)
+                    Message.AddWarning("Calculations: Daily Prices: No input Calculations database selected!" & vbCrLf)
                     Exit Sub
                 Else
                     connectionString = "provider=Microsoft.ACE.OLEDB.12.0;data source = " + CalculationsDbPath
@@ -6381,8 +7968,6 @@ Public Class Main
 
         cmbDailyPriceInputTable.Text = ""
         cmbDailyPriceInputTable.Items.Clear()
-
-        'Dim ds As DataSet = New DataSet
 
         conn = New System.Data.OleDb.OleDbConnection(connectionString)
         conn.Open()
@@ -6413,21 +7998,21 @@ Public Class Main
         Select Case cmbDailyPriceOutputDb.SelectedItem.ToString
             Case "Share Prices"
                 If SharePriceDbPath = "" Then
-                    Message.AddWarning("No database selected!" & vbCrLf)
+                    Message.AddWarning("Calculations: Daily Prices: No output Share Prices database selected!" & vbCrLf)
                     Exit Sub
                 Else
                     connectionString = "provider=Microsoft.ACE.OLEDB.12.0;data source = " + SharePriceDbPath
                 End If
             Case "Financials"
                 If FinancialsDbPath = "" Then
-                    Message.AddWarning("No database selected!" & vbCrLf)
+                    Message.AddWarning("Calculations: Daily Prices: No output Financials database selected!" & vbCrLf)
                     Exit Sub
                 Else
                     connectionString = "provider=Microsoft.ACE.OLEDB.12.0;data source = " + FinancialsDbPath
                 End If
             Case "Calculations"
                 If CalculationsDbPath = "" Then
-                    Message.AddWarning("No database selected!" & vbCrLf)
+                    Message.AddWarning("Calculations: Daily Prices: No output Calculations database selected!" & vbCrLf)
                     Exit Sub
                 Else
                     connectionString = "provider=Microsoft.ACE.OLEDB.12.0;data source = " + CalculationsDbPath
@@ -6439,8 +8024,6 @@ Public Class Main
 
         cmbDailyPriceOutputTable.Text = ""
         cmbDailyPriceOutputTable.Items.Clear()
-
-        'Dim ds As DataSet = New DataSet
 
         conn = New System.Data.OleDb.OleDbConnection(connectionString)
         conn.Open()
@@ -6519,13 +8102,6 @@ Public Class Main
             XSeq.SequenceName = SelectedFileName
             XSeq.SequenceDescription = txtDescription.Text
 
-            'rtbSequence.Text = xmlSeq.ToString
-            'FormatXmlText()
-
-            'Import.ImportSequenceName = SelectedFileName
-            'Import.ImportSequenceDescription = xmlSeq.<ProcessingSequence>.<Description>.Value
-            'txtDescription.Text = Import.ImportSequenceDescription
-
         End If
     End Sub
 
@@ -6533,34 +8109,1664 @@ Public Class Main
 
 #End Region 'Processing Sequence Tab ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
-    Private Sub DeleteSettingsFileToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles DeleteSettingsFileToolStripMenuItem.Click
-        'Delete the Settings File corresponding to the text box clicked.
-        Message.Add("ContextMenuStrip1.SourceControl.Name = " & ContextMenuStrip1.SourceControl.Name & vbCrLf)
-
-        Select Case ContextMenuStrip1.SourceControl.Name
-            Case "txtCopyDataSettings" 'Delete the selected Copy Data settings file.
-                'Dim SettingsFile As String = txtCopyDataSettings.Text
-                Project.DeleteData(txtCopyDataSettings.Text)
-                CopyDataSettingsFile = ""
-                txtCopyDataSettings.Text = ""
-                cmbCopyDataInputData.SelectedIndex = 0
-                cmbCopyDataOutputData.SelectedIndex = 0
-                dgvCopyData.Rows.Clear()
-
-            Case "txtSimpleCalcSettings" 'Delete the selected Simple Calculations settings file.
-                Project.DeleteData(txtSimpleCalcSettings.Text)
-                SimpleCalcsSettingsFile = ""
-                txtSimpleCalcSettings.Text = ""
-                cmbSimpleCalcData.SelectedIndex = 0
-                dgvSimpleCalcsParameterList.Rows.Clear()
-                dgvSimpleCalcsCalculations.Rows.Clear()
-                dgvSimpleCalcsInputData.Rows.Clear()
-                dgvSimpleCalcsOutputData.Rows.Clear()
+#Region " Charts Tab" '========================================================================================================================================================================
 
 
-        End Select
+    Private Sub DataGridView1_DataError(sender As Object, e As DataGridViewDataErrorEventArgs) Handles DataGridView1.DataError
+        'This code stops an unnecessary error dialog appearing.
+        If e.Context = DataGridViewDataErrorContexts.Formatting Or e.Context = DataGridViewDataErrorContexts.PreferredSize Then
+            e.ThrowException = False
+        End If
 
     End Sub
+
+    Private Sub SetUpChartSharePricesTab()
+        'Set up the Share Prices tab under the Charts tab.
+
+        'Set up database selection options:
+        cmbSPChartDb.Items.Clear()
+        cmbSPChartDb.Items.Add("Share Prices")
+        cmbSPChartDb.Items.Add("Financials")
+        cmbSPChartDb.Items.Add("Calculations")
+
+        '
+        'Dim cboFieldSelections As New DataGridViewComboBoxColumn 'Used for selecting Y Value fields in the Chart Settings tab
+        DataGridView1.ColumnCount = 1
+        DataGridView1.RowCount = 1
+        DataGridView1.Columns(0).HeaderText = "Y Value"
+        DataGridView1.Columns(0).Width = 120
+        DataGridView1.Columns.Insert(1, cboFieldSelections)
+        DataGridView1.Columns(1).HeaderText = "Field"
+        DataGridView1.Columns(1).Width = 360
+        DataGridView1.AllowUserToResizeColumns = True
+
+        'Set up Y Values selection options:
+        DataGridView1.Rows.Clear()
+        DataGridView1.Rows.Add(4)
+        DataGridView1.Rows(0).Cells(0).Value = "High" 'First Y Value Parameter Name
+        DataGridView1.Rows(1).Cells(0).Value = "Low" 'Second Y Value parameter name
+        DataGridView1.Rows(2).Cells(0).Value = "Open" 'Third Y Value parameter name
+        DataGridView1.Rows(3).Cells(0).Value = "Close" 'Fourth Y value parameter name
+
+        'Get list of columns that the query would retreive.
+        'Add the list to the selection options in Column 1.
+        'https://stackoverflow.com/questions/7159524/get-column-names-from-a-query-without-data
+
+        'Set up the Chart Title alignment options:
+        cmbAlignment.Items.Clear()
+        'Show the list of ContentAlignment enumerations in the cmbAlignment combobox:
+        For Each item In System.Enum.GetValues(GetType(ContentAlignment))
+            cmbAlignment.Items.Add(item)
+        Next
+        cmbAlignment.SelectedIndex = 1 'Top Center
+
+
+    End Sub
+
+    Private Sub SetUpChartCrossPlotsTab()
+        'Set up the Cross Plots tab under the Charts tab.
+
+        'Set up database selection options:
+        cmbPointChartDb.Items.Clear()
+        cmbPointChartDb.Items.Add("Share Prices")
+        cmbPointChartDb.Items.Add("Financials")
+        cmbPointChartDb.Items.Add("Calculations")
+
+        'Set up the Chart Title alignment options:
+        cmbPointChartAlignment.Items.Clear()
+        'Show the list of ContentAlignment enumerations in the cmbAlignment combobox:
+        For Each item In System.Enum.GetValues(GetType(ContentAlignment))
+            cmbPointChartAlignment.Items.Add(item)
+        Next
+        cmbPointChartAlignment.SelectedIndex = 1 'Top Center
+
+    End Sub
+
+    Private Sub UpdateChartSharePricesTab()
+        'Update the field selection options on the Chart Share Prices tab.
+
+        If txtSPChartDbPath.Text = "" Then
+            Message.AddWarning("Charts: Share Prices: No database has been selected." & vbCrLf)
+            Exit Sub
+        End If
+
+        If txtSPChartQuery.Text = "" Then
+            Message.AddWarning("No query has been specified." & vbCrLf)
+        End If
+
+        Dim connString As String
+        connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source = " & txtSPChartDbPath.Text
+
+        Dim myConnection As OleDb.OleDbConnection = New OleDb.OleDbConnection
+        myConnection.ConnectionString = connString
+        myConnection.Open()
+
+        Dim Query As String = txtSPChartQuery.Text & " AND 1 = 2" 'This is used to get all the fields in the query. " AND 1 = 2" ensures no data rows are retrieved.
+
+        Dim da As OleDb.OleDbDataAdapter
+        da = New OleDb.OleDbDataAdapter(Query, myConnection)
+        da.MissingSchemaAction = MissingSchemaAction.AddWithKey
+
+        Dim ds As DataSet = New DataSet
+
+        Try
+            cboFieldSelections.Items.Clear()
+            cmbXValues.Items.Clear()
+            da.Fill(ds, "myData")
+
+            If ds.Tables(0).Columns.Count > 0 Then
+                Dim I As Integer 'Loop index
+                Dim Name As String
+                For I = 1 To ds.Tables(0).Columns.Count
+                    Name = ds.Tables(0).Columns(I - 1).ColumnName
+                    cmbXValues.Items.Add(ds.Tables(0).Columns(I - 1).ColumnName) 'ComboBox used to selected the XValues column.
+                    cboFieldSelections.Items.Add(Name)
+                    'Make default selections:
+                    If LCase(Name).Contains("date") Then cmbXValues.Text = Name
+                    If LCase(Name).Contains("high") Then DataGridView1.Rows(0).Cells(1).Value = Name
+                    If LCase(Name).Contains("low") Then DataGridView1.Rows(1).Cells(1).Value = Name
+                    If LCase(Name).Contains("open") Then DataGridView1.Rows(2).Cells(1).Value = Name
+                    If LCase(Name).Contains("close") Then DataGridView1.Rows(3).Cells(1).Value = Name
+                Next
+            End If
+        Catch ex As Exception
+            Message.AddWarning("Error applying query: " & ex.Message & vbCrLf)
+        End Try
+    End Sub
+
+    Private Sub cmbSPChartDb_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbSPChartDb.SelectedIndexChanged
+        'The selected database has changed.
+
+        Select Case cmbSPChartDb.SelectedItem.ToString
+            Case "Share Prices"
+                txtSPChartDbPath.Text = SharePriceDbPath
+            Case "Financials"
+                txtSPChartDbPath.Text = FinancialsDbPath
+            Case "Calculations"
+                txtSPChartDbPath.Text = CalculationsDbPath
+        End Select
+
+        FillChartDataTableList()
+    End Sub
+
+    Private Sub FillChartDataTableList()
+        'Fill the list of tables in cmbChartDataTable
+
+        'Database access for MS Access:
+        Dim connectionString As String 'Declare a connection string for MS Access - defines the database or server to be used.
+        Dim conn As System.Data.OleDb.OleDbConnection 'Declare a connection for MS Access - used by the Data Adapter to connect to and disconnect from the database.
+        Dim dt As DataTable
+
+        cmbChartDataTable.Items.Clear()
+
+        If txtSPChartDbPath.Text = "" Then
+            Exit Sub
+        End If
+
+        'Access 2007:
+        connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
+        "data source = " + txtSPChartDbPath.Text
+
+        'Connect to the Access database:
+        conn = New System.Data.OleDb.OleDbConnection(connectionString)
+
+        Try
+            conn.Open()
+
+            Dim restrictions As String() = New String() {Nothing, Nothing, Nothing, "TABLE"} 'This restriction removes system tables
+            dt = conn.GetSchema("Tables", restrictions)
+
+            'Fill lstSelectTable
+            Dim dr As DataRow
+            Dim I As Integer 'Loop index
+            Dim MaxI As Integer
+
+            MaxI = dt.Rows.Count
+            For I = 0 To MaxI - 1
+                dr = dt.Rows(0)
+                'lstTables.Items.Add(dt.Rows(I).Item(2).ToString)
+                cmbChartDataTable.Items.Add(dt.Rows(I).Item(2).ToString)
+            Next I
+
+            conn.Close()
+        Catch ex As Exception
+            Message.AddWarning("Error opening database: " & txtSPChartDbPath.Text & vbCrLf)
+            Message.AddWarning(ex.Message & vbCrLf & vbCrLf)
+        End Try
+    End Sub
+
+    Private Sub cmbChartDataTable_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbChartDataTable.SelectedIndexChanged
+
+        FillCompanyCodeColumn()
+    End Sub
+
+    Private Sub FillCompanyCodeColumn()
+        'Fill the list of available table columns in cmbCompanyCodeColumn
+
+        If cmbChartDataTable.SelectedIndex = -1 Then
+            'No item is selected
+            cmbCompanyCodeCol.Items.Clear()
+        Else
+            'Database access for MS Access:
+            Dim connectionString As String 'Declare a connection string for MS Access - defines the database or server to be used.
+            Dim conn As System.Data.OleDb.OleDbConnection 'Declare a connection for MS Access - used by the Data Adapter to connect to and disconnect from the database.
+            Dim commandString As String 'Declare a command string - contains the query to be passed to the database.
+            Dim ds As DataSet 'Declate a Dataset.
+            Dim dt As DataTable
+
+            cmbCompanyCodeCol.Items.Clear()
+
+            'Specify the connection string (Access 2007):
+            connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
+            "data source = " + txtSPChartDbPath.Text
+
+            'Connect to the Access database:
+            conn = New System.Data.OleDb.OleDbConnection(connectionString)
+            conn.Open()
+
+            'Specify the commandString to query the database:
+            commandString = "SELECT Top 500 * FROM " + cmbChartDataTable.SelectedItem.ToString
+            Dim dataAdapter As New System.Data.OleDb.OleDbDataAdapter(commandString, conn)
+            ds = New DataSet
+            dataAdapter.Fill(ds, "SelTable") 'ds was defined earlier as a DataSet
+            dt = ds.Tables("SelTable")
+
+            Dim NFields As Integer
+            NFields = dt.Columns.Count
+            Dim I As Integer
+            For I = 0 To NFields - 1
+                cmbCompanyCodeCol.Items.Add(dt.Columns(I).ColumnName.ToString)
+            Next
+
+            conn.Close()
+
+        End If
+
+    End Sub
+
+    Private Sub cmbCompanyCodeCol_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbCompanyCodeCol.SelectedIndexChanged
+        'The company code column selection has changed
+
+        If cmbCompanyCodeCol.SelectedIndex = -1 Then
+            'No Company Code column has been selected.
+            txtSPChartQuery.Text = ""
+        Else
+            UpdateSPChartQuery()
+        End If
+
+    End Sub
+
+    Private Sub txtSPChartCompanyCode_LostFocus(sender As Object, e As EventArgs) Handles txtSPChartCompanyCode.LostFocus
+        UpdateSPChartQuery()
+        txtSeriesName.Text = txtSPChartCompanyCode.Text
+    End Sub
+
+    Private Sub UpdateSPChartQuery()
+
+        If cmbChartDataTable.SelectedIndex = -1 Then
+            Message.AddWarning("Charts: No data table has been selected." & vbCrLf)
+            Exit Sub
+        End If
+
+        If cmbCompanyCodeCol.SelectedIndex = -1 Then
+            Message.AddWarning("No company code column has been selected." & vbCrLf)
+            Exit Sub
+        End If
+        If chkSPChartUseDateRange.Checked Then 'Include a date range in the query:
+            txtSPChartQuery.Text = "SELECT * FROM " & cmbChartDataTable.SelectedItem.ToString & " WHERE " & cmbCompanyCodeCol.SelectedItem.ToString & " = '" & txtSPChartCompanyCode.Text & "'" & " AND " & cmbXValues.SelectedItem.ToString & " BETWEEN #" & Format(dtpSPChartFromDate.Value, "MM-dd-yyyy") & "# AND #" & Format(dtpSPChartToDate.Value, "MM-dd-yyyy") & "#"
+        Else 'Dont include a date range in the query:
+            txtSPChartQuery.Text = "SELECT * FROM " & cmbChartDataTable.SelectedItem.ToString & " WHERE " & cmbCompanyCodeCol.SelectedItem.ToString & " = '" & txtSPChartCompanyCode.Text & "'"
+        End If
+
+    End Sub
+
+    Private Sub chkSPChartUseDateRange_CheckedChanged(sender As Object, e As EventArgs) Handles chkSPChartUseDateRange.CheckedChanged
+        UpdateSPChartQuery()
+    End Sub
+
+    Private Sub txtSPChartQuery_LostFocus(sender As Object, e As EventArgs) Handles txtSPChartQuery.LostFocus
+        UpdateChartSharePricesTab()
+    End Sub
+
+    Private Sub btnDisplayStockChart_Click(sender As Object, e As EventArgs) Handles btnDisplayStockChart.Click
+
+
+        DisplayStockChart()
+    End Sub
+
+    Public Sub DisplayStockChartUsingDefaults()
+        'Display Stock Chart.
+        'Use the default parameters in StockChartDefaults
+        'Send the instructions to the Chart application to display the stock chart.
+
+        If StockChartDefaults Is Nothing Then
+            Message.AddWarning("No Stock Chart default settings loaded." & vbCrLf)
+            DisplayStockChartNoDefaults()
+            Exit Sub
+        End If
+
+        'Create the xml instructions
+        Dim decl As New XDeclaration("1.0", "utf-8", "yes")
+        Dim doc As New XDocument(decl, Nothing) 'Create an XDocument to store the instructions.
+        Dim xmessage As New XElement("XMsg") 'This indicates the start of the message in the XMessage class
+
+        Dim clientAppNetName As New XElement("ClientAppNetName", AppNetName)
+        xmessage.Add(clientAppNetName)
+
+        Dim clientName As New XElement("ClientName", ApplicationInfo.Name) 'This tells the coordinate server the name of the client making the request.
+        xmessage.Add(clientName)
+
+        Dim clientLocn As New XElement("ClientLocn", "StockChart")
+        xmessage.Add(clientLocn)
+
+        Dim chartSettings As New XElement("StockChartSettings")
+
+        Dim chartType As New XElement("ChartType", "Stock")
+        chartSettings.Add(chartType)
+
+        Dim commandClearChart As New XElement("Command", "ClearChart")
+        chartSettings.Add(commandClearChart)
+
+        Dim inputData As New XElement("InputData")
+        Dim dataType As New XElement("Type", "Database")
+        inputData.Add(dataType)
+
+        Dim databasePath As New XElement("DatabasePath", txtSPChartDbPath.Text)
+        inputData.Add(databasePath)
+
+        Dim dataDescription As New XElement("DataDescription", txtSeriesName.Text)
+        inputData.Add(dataDescription)
+
+        Dim databaseQuery As New XElement("DatabaseQuery", txtSPChartQuery.Text)
+        inputData.Add(databaseQuery)
+
+        chartSettings.Add(inputData)
+
+        Dim chartProperties As New XElement("ChartProperties")
+        Dim seriesName As New XElement("SeriesName", txtSeriesName.Text)
+        chartProperties.Add(seriesName)
+        Dim xValuesFieldName As New XElement("XValuesFieldName", cmbXValues.SelectedItem.ToString)
+        chartProperties.Add(xValuesFieldName)
+        Dim yValuesHighFieldName As New XElement("YValuesHighFieldName", DataGridView1.Rows(0).Cells(1).Value)
+        chartProperties.Add(yValuesHighFieldName)
+        Dim yValuesLowFieldName As New XElement("YValuesLowFieldName", DataGridView1.Rows(1).Cells(1).Value)
+        chartProperties.Add(yValuesLowFieldName)
+        Dim yValuesOpenFieldName As New XElement("YValuesOpenFieldName", DataGridView1.Rows(2).Cells(1).Value)
+        chartProperties.Add(yValuesOpenFieldName)
+        Dim yValuesCloseFieldName As New XElement("YValuesCloseFieldName", DataGridView1.Rows(3).Cells(1).Value)
+        chartProperties.Add(yValuesCloseFieldName)
+        chartSettings.Add(chartProperties)
+
+        Dim chartTitle As New XElement("ChartTitle")
+        Dim chartTitleLabelName As New XElement("LabelName", "Label1")
+        chartTitle.Add(chartTitleLabelName)
+        Dim chartTitleText As New XElement("Text", txtChartTitle.Text)
+        chartTitle.Add(chartTitleText)
+
+        If StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<FontName>.Value <> Nothing Then
+            Dim chartTitleFontName As New XElement("FontName", StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<FontName>.Value)
+            chartTitle.Add(chartTitleFontName)
+        Else
+            Message.AddWarning("Default Chart Title Font Name settings not found." & vbCrLf)
+            Dim chartTitleFontName As New XElement("FontName", txtChartTitle.Font.Name)
+            chartTitle.Add(chartTitleFontName)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Color>.Value <> Nothing Then
+            Dim chartTitleColor As New XElement("Color", StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Color>.Value)
+            chartTitle.Add(chartTitleColor)
+        Else
+            Message.AddWarning("Default Chart Title Color settings not found." & vbCrLf)
+            Dim chartTitleColor As New XElement("Color", txtChartTitle.ForeColor)
+            chartTitle.Add(chartTitleColor)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Size>.Value <> Nothing Then
+            Dim chartTitleSize As New XElement("Size", StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Size>.Value)
+            chartTitle.Add(chartTitleSize)
+        Else
+            Message.AddWarning("Default Chart Title Size settings not found." & vbCrLf)
+            Dim chartTitleSize As New XElement("Size", txtChartTitle.Font.Size)
+            chartTitle.Add(chartTitleSize)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Bold>.Value <> Nothing Then
+            Dim chartTitleBold As New XElement("Bold", StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Bold>.Value)
+            chartTitle.Add(chartTitleBold)
+        Else
+            Message.AddWarning("Default Chart Title Bold settings not found." & vbCrLf)
+            Dim chartTitleBold As New XElement("Bold", txtChartTitle.Font.Bold)
+            chartTitle.Add(chartTitleBold)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Italic>.Value <> Nothing Then
+            Dim chartTitleItalic As New XElement("Italic", StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Italic>.Value)
+            chartTitle.Add(chartTitleItalic)
+        Else
+            Message.AddWarning("Default Chart Title Italic settings not found." & vbCrLf)
+            Dim chartTitleItalic As New XElement("Italic", txtChartTitle.Font.Italic)
+            chartTitle.Add(chartTitleItalic)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Underline>.Value <> Nothing Then
+            Dim chartTitleUnderline As New XElement("Underline", StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Underline>.Value)
+            chartTitle.Add(chartTitleUnderline)
+        Else
+            Message.AddWarning("Default Chart Title Underline settings not found." & vbCrLf)
+            Dim chartTitleUnderline As New XElement("Underline", txtChartTitle.Font.Underline)
+            chartTitle.Add(chartTitleUnderline)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Strikeout>.Value <> Nothing Then
+            Dim chartTitleStrikeout As New XElement("Strikeout", StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Strikeout>.Value)
+            chartTitle.Add(chartTitleStrikeout)
+        Else
+            Message.AddWarning("Default Chart Title Strikeout settings not found." & vbCrLf)
+            Dim chartTitleStrikeout As New XElement("Strikeout", txtChartTitle.Font.Strikeout)
+            chartTitle.Add(chartTitleStrikeout)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Alignment>.Value <> Nothing Then
+            Dim chartTitleAlignment As New XElement("Alignment", StockChartDefaults.<StockChart>.<Settings>.<ChartTitle>.<Alignment>.Value)
+            chartTitle.Add(chartTitleAlignment)
+        Else
+            Message.AddWarning("Default Chart Title Alignment settings not found." & vbCrLf)
+            Dim chartTitleAlignment As New XElement("Alignment", cmbAlignment.SelectedItem.ToString)
+            chartTitle.Add(chartTitleAlignment)
+        End If
+
+        chartSettings.Add(chartTitle)
+
+        Dim xAxis As New XElement("XAxis")
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleText>.Value <> Nothing Then
+            Dim xAxisTitleText As New XElement("TitleText", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleText>.Value)
+            xAxis.Add(xAxisTitleText)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleFontName>.Value <> Nothing Then
+            Dim xAxisTitleFontName As New XElement("TitleFontName", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleFontName>.Value)
+            xAxis.Add(xAxisTitleFontName)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleColor>.Value <> Nothing Then
+            Dim xAxisTitleColor As New XElement("TitleColor", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleColor>.Value)
+            xAxis.Add(xAxisTitleColor)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleSize>.Value <> Nothing Then
+            Dim xAxisTitleSize As New XElement("TitleSize", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleSize>.Value)
+            xAxis.Add(xAxisTitleSize)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleBold>.Value <> Nothing Then
+            Dim xAxisTitleBold As New XElement("TitleBold", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleBold>.Value)
+            xAxis.Add(xAxisTitleBold)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleItalic>.Value <> Nothing Then
+            Dim xAxisTitleItalic As New XElement("TitleItalic", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleItalic>.Value)
+            xAxis.Add(xAxisTitleItalic)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleUnderline>.Value <> Nothing Then
+            Dim xAxisTitleUnderline As New XElement("TitleUnderline", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleUnderline>.Value)
+            xAxis.Add(xAxisTitleUnderline)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleStrikeout>.Value <> Nothing Then
+            Dim xAxisTitleStrikeout As New XElement("TitleStrikeout", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleStrikeout>.Value)
+            xAxis.Add(xAxisTitleStrikeout)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleAlignment>.Value <> Nothing Then
+            Dim xAxisTitleAlignment As New XElement("TitleAlignment", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<TitleAlignment>.Value)
+            xAxis.Add(xAxisTitleAlignment)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoMinimum>.Value <> Nothing Then
+            Dim xAxisAutoMinimum As New XElement("AutoMinimum", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoMinimum>.Value)
+            xAxis.Add(xAxisAutoMinimum)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<Minimum>.Value <> Nothing Then
+            Dim xAxisMinimum As New XElement("Minimum", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<Minimum>.Value)
+            xAxis.Add(xAxisMinimum)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoMaximum>.Value <> Nothing Then
+            Dim xAxisAutoMaximum As New XElement("AutoMaximum", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoMaximum>.Value)
+            xAxis.Add(xAxisAutoMaximum)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<Maximum>.Value <> Nothing Then
+            Dim xAxisMaximum As New XElement("Maximum", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<Maximum>.Value)
+            xAxis.Add(xAxisMaximum)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoInterval>.Value <> Nothing Then
+            Dim xAxisAutoInterval As New XElement("AutoInterval", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoInterval>.Value)
+            xAxis.Add(xAxisAutoInterval)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<MajorGridInterval>.Value <> Nothing Then
+            Dim xAxisMajorGridInterval As New XElement("MajorGridInterval", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<MajorGridInterval>.Value)
+            xAxis.Add(xAxisMajorGridInterval)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoMajorGridInterval>.Value <> Nothing Then
+            Dim xAxisAutoMajorGridInterval As New XElement("AutoMajorGridInterval", StockChartDefaults.<StockChart>.<Settings>.<XAxis>.<AutoMajorGridInterval>.Value)
+            xAxis.Add(xAxisAutoMajorGridInterval)
+        End If
+
+        chartSettings.Add(xAxis)
+
+        Dim yAxis As New XElement("YAxis")
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleText>.Value <> Nothing Then
+            Dim yAxisTitleText As New XElement("TitleText", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleText>.Value)
+            yAxis.Add(yAxisTitleText)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleFontName>.Value <> Nothing Then
+            Dim yAxisTitleFontName As New XElement("TitleFontName", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleFontName>.Value)
+            yAxis.Add(yAxisTitleFontName)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleColor>.Value <> Nothing Then
+            Dim yAxisTitleColor As New XElement("TitleColor", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleColor>.Value)
+            yAxis.Add(yAxisTitleColor)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleSize>.Value <> Nothing Then
+            Dim yAxisTitleSize As New XElement("TitleSize", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleSize>.Value)
+            yAxis.Add(yAxisTitleSize)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleBold>.Value <> Nothing Then
+            Dim yAxisTitleBold As New XElement("TitleBold", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleBold>.Value)
+            yAxis.Add(yAxisTitleBold)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleItalic>.Value <> Nothing Then
+            Dim yAxisTitleItalic As New XElement("TitleItalic", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleItalic>.Value)
+            yAxis.Add(yAxisTitleItalic)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleUnderline>.Value <> Nothing Then
+            Dim yAxisTitleUnderline As New XElement("TitleUnderline", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleUnderline>.Value)
+            yAxis.Add(yAxisTitleUnderline)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleStrikeout>.Value <> Nothing Then
+            Dim yAxisTitleStrikeout As New XElement("TitleStrikeout", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleStrikeout>.Value)
+            yAxis.Add(yAxisTitleStrikeout)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleAlignment>.Value <> Nothing Then
+            Dim yAxisTitleAlignment As New XElement("TitleAlignment", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<TitleAlignment>.Value)
+            yAxis.Add(yAxisTitleAlignment)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<AutoMinimum>.Value <> Nothing Then
+            Dim yAxisAutoMinimum As New XElement("AutoMinimum", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<AutoMinimum>.Value)
+            yAxis.Add(yAxisAutoMinimum)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<Minimum>.Value <> Nothing Then
+            Dim yAxisMinimum As New XElement("Minimum", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<Minimum>.Value)
+            yAxis.Add(yAxisMinimum)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<AutoMaximum>.Value <> Nothing Then
+            Dim yAxisAutoMaximum As New XElement("AutoMaximum", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<AutoMaximum>.Value)
+            yAxis.Add(yAxisAutoMaximum)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<Maximum>.Value <> Nothing Then
+            Dim yAxisMaximum As New XElement("Maximum", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<Maximum>.Value)
+            yAxis.Add(yAxisMaximum)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<AutoInterval>.Value <> Nothing Then
+            Dim yAxisAutoInterval As New XElement("AutoInterval", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<AutoInterval>.Value)
+            yAxis.Add(yAxisAutoInterval)
+        End If
+
+        If StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<MajorGridInterval>.Value <> Nothing Then
+            Dim yAxisMajorGridInterval As New XElement("MajorGridInterval", StockChartDefaults.<StockChart>.<Settings>.<YAxis>.<MajorGridInterval>.Value)
+            yAxis.Add(yAxisMajorGridInterval)
+        End If
+
+        chartSettings.Add(yAxis)
+
+
+        Dim commandDrawChart As New XElement("Command", "DrawChart")
+        chartSettings.Add(commandDrawChart)
+
+        xmessage.Add(chartSettings)
+        doc.Add(xmessage)
+
+        If IsNothing(client) Then
+            Message.AddWarning("No client connection available!" & vbCrLf)
+            Beep()
+        Else
+
+            client.SendMessageAsync(AppNetName, "ADVL_Stock_Chart_1", doc.ToString) 'Added 3Feb19
+            Message.XAddText("Message sent to " & "ADVL_Stock_Chart_1" & ":" & vbCrLf, "XmlSentNotice")
+            Message.XAddXml(doc.ToString)
+            Message.XAddText(vbCrLf, "Message") 'Add extra line
+        End If
+
+    End Sub
+
+    Public Sub DisplayStockChart()
+        'Display Stock Chart.
+
+        'Check if connected to ComNet:
+        If ConnectedToComNet = False Then
+            ConnectToComNet()
+        End If
+
+        If chkUseStockChartDefaults.Checked Then
+            DisplayStockChartUsingDefaults()
+        Else
+            DisplayStockChartNoDefaults()
+        End If
+    End Sub
+
+    Private Sub DisplayStockChartNoDefaults()
+        'Display the stock chart without using the default chart settings.
+
+        'Send the instructions to the Chart application to display the stock chart.
+
+        'Check that required selections have been made:
+        If cmbXValues.SelectedItem Is Nothing Then
+            Message.AddWarning("Select a field for the X Values." & vbCrLf)
+            Exit Sub
+        End If
+
+
+        'Create the xml instructions
+        Dim decl As New XDeclaration("1.0", "utf-8", "yes")
+        Dim doc As New XDocument(decl, Nothing) 'Create an XDocument to store the instructions.
+        Dim xmessage As New XElement("XMsg") 'This indicates the start of the message in the XMessage class
+
+        Dim clientAppNetName As New XElement("ClientAppNetName", AppNetName)
+        xmessage.Add(clientAppNetName)
+
+        Dim clientName As New XElement("ClientName", ApplicationInfo.Name) 'This tells the coordinate server the name of the client making the request.
+        xmessage.Add(clientName)
+
+        Dim clientLocn As New XElement("ClientLocn", "StockChart")
+        xmessage.Add(clientLocn)
+
+        Dim chartSettings As New XElement("StockChartSettings")
+
+        Dim chartType As New XElement("ChartType", "Stock")
+        chartSettings.Add(chartType)
+
+        Dim commandClearChart As New XElement("Command", "ClearChart")
+        chartSettings.Add(commandClearChart)
+
+        Dim inputData As New XElement("InputData")
+        Dim dataType As New XElement("Type", "Database")
+        inputData.Add(dataType)
+        Dim databasePath As New XElement("DatabasePath", txtSPChartDbPath.Text)
+        inputData.Add(databasePath)
+        Dim dataDescription As New XElement("DataDescription", txtSeriesName.Text)
+        inputData.Add(dataDescription)
+        Dim databaseQuery As New XElement("DatabaseQuery", txtSPChartQuery.Text)
+        inputData.Add(databaseQuery)
+        chartSettings.Add(inputData)
+
+        Dim chartProperties As New XElement("ChartProperties")
+        Dim seriesName As New XElement("SeriesName", txtSeriesName.Text)
+        chartProperties.Add(seriesName)
+        Dim xValuesFieldName As New XElement("XValuesFieldName", cmbXValues.SelectedItem.ToString)
+        chartProperties.Add(xValuesFieldName)
+        Dim yValuesHighFieldName As New XElement("YValuesHighFieldName", DataGridView1.Rows(0).Cells(1).Value)
+        chartProperties.Add(yValuesHighFieldName)
+        Dim yValuesLowFieldName As New XElement("YValuesLowFieldName", DataGridView1.Rows(1).Cells(1).Value)
+        chartProperties.Add(yValuesLowFieldName)
+        Dim yValuesOpenFieldName As New XElement("YValuesOpenFieldName", DataGridView1.Rows(2).Cells(1).Value)
+        chartProperties.Add(yValuesOpenFieldName)
+        Dim yValuesCloseFieldName As New XElement("YValuesCloseFieldName", DataGridView1.Rows(3).Cells(1).Value)
+        chartProperties.Add(yValuesCloseFieldName)
+        chartSettings.Add(chartProperties)
+
+        Dim chartTitle As New XElement("ChartTitle")
+        Dim chartTitleLabelName As New XElement("LabelName", "Label1")
+        chartTitle.Add(chartTitleLabelName)
+        Dim chartTitleText As New XElement("Text", txtChartTitle.Text)
+        chartTitle.Add(chartTitleText)
+        Dim chartTitleFontName As New XElement("FontName", txtChartTitle.Font.Name)
+        chartTitle.Add(chartTitleFontName)
+        Dim chartTitleColor As New XElement("Color", txtChartTitle.ForeColor)
+        chartTitle.Add(chartTitleColor)
+        Dim chartTitleSize As New XElement("Size", txtChartTitle.Font.Size)
+        chartTitle.Add(chartTitleSize)
+        Dim chartTitleBold As New XElement("Bold", txtChartTitle.Font.Bold)
+        chartTitle.Add(chartTitleBold)
+        Dim chartTitleItalic As New XElement("Italic", txtChartTitle.Font.Italic)
+        chartTitle.Add(chartTitleItalic)
+        Dim chartTitleUnderline As New XElement("Underline", txtChartTitle.Font.Underline)
+        chartTitle.Add(chartTitleUnderline)
+        Dim chartTitleStrikeout As New XElement("Strikeout", txtChartTitle.Font.Strikeout)
+        chartTitle.Add(chartTitleStrikeout)
+        Dim chartTitleAlignment As New XElement("Alignment", cmbAlignment.SelectedItem.ToString)
+        chartTitle.Add(chartTitleAlignment)
+        chartSettings.Add(chartTitle)
+
+        Dim commandDrawChart As New XElement("Command", "DrawChart")
+        chartSettings.Add(commandDrawChart)
+
+        xmessage.Add(chartSettings)
+        doc.Add(xmessage)
+
+        If IsNothing(client) Then
+            Message.AddWarning("No client connection available!" & vbCrLf)
+            Beep()
+        ElseIf client.State = ServiceModel.CommunicationState.Faulted Then
+            Message.AddWarning("Client state is faulted. Message not sent!" & vbCrLf)
+        Else
+            client.SendMessageAsync(AppNetName, "ADVL_Stock_Chart_1", doc.ToString) 'Added 3Feb19
+            Message.XAddText("Message sent to " & "ADVL_Stock_Chart_1" & ":" & vbCrLf, "XmlSentNotice")
+            Message.XAddXml(doc.ToString)
+            Message.XAddText(vbCrLf, "Message") 'Add extra line
+        End If
+    End Sub
+
+    Private Sub btnGetStockChartDefaults_Click(sender As Object, e As EventArgs) Handles btnGetStockChartDefaults.Click
+        'Send a request to ADVL_Charts_1 for the current Stock Chart settings.
+
+        'Create the xml instructions
+        Dim decl As New XDeclaration("1.0", "utf-8", "yes")
+        Dim doc As New XDocument(decl, Nothing) 'Create an XDocument to store the instructions.
+        Dim xmessage As New XElement("XMsg") 'This indicates the start of the message in the XMessage class
+
+        'ADDED 3Feb19:
+        Dim clientAppNetName As New XElement("ClientAppNetName", AppNetName)
+        xmessage.Add(clientAppNetName)
+
+        Dim clientName As New XElement("ClientName", ApplicationInfo.Name) 'This tells the coordinate server the name of the client making the request.
+        xmessage.Add(clientName)
+
+        Dim clientLocn As New XElement("ClientLocn", "StockChart")
+        xmessage.Add(clientLocn)
+
+        Dim commandGetSettings As New XElement("Command", "GetStockChartSettings")
+        xmessage.Add(commandGetSettings)
+
+        doc.Add(xmessage)
+
+        If IsNothing(client) Then
+            Message.AddWarning("No client connection available!" & vbCrLf)
+            Beep()
+        Else
+            client.SendMessageAsync(AppNetName, "ADVL_Stock_Chart_1", doc.ToString) 'Added 3Feb19
+            Message.XAddText("Message sent to " & "ADVL_Stock_Chart_1" & ":" & vbCrLf, "XmlSentNotice")
+            Message.XAddXml(doc.ToString)
+            Message.XAddText(vbCrLf, "Message") 'Add extra line
+
+        End If
+    End Sub
+
+    Private Sub UpdateChartCrossPlotsTab()
+        'Update the field selection options on the Chart Cross Plots tab.
+
+        If txtPointChartDbPath.Text = "" Then
+            Message.AddWarning("Charts: Cross Plots: No database has been selected." & vbCrLf)
+            Exit Sub
+        End If
+
+        If txtPointChartQuery.Text = "" Then
+            Message.AddWarning("No query has been specified." & vbCrLf)
+        End If
+
+        Dim connString As String
+        connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source = " & txtPointChartDbPath.Text
+
+        Dim myConnection As OleDb.OleDbConnection = New OleDb.OleDbConnection
+        myConnection.ConnectionString = connString
+        myConnection.Open()
+
+        Dim Query As String = txtPointChartQuery.Text & " AND 1 = 2" 'This is used to get all the fields in the query. " AND 1 = 2" ensures no data rows are retrieved.
+
+        Dim da As OleDb.OleDbDataAdapter
+        da = New OleDb.OleDbDataAdapter(Query, myConnection)
+        da.MissingSchemaAction = MissingSchemaAction.AddWithKey
+
+        Dim ds As DataSet = New DataSet
+
+        Try
+            cmbPointXValues.Items.Clear()
+            cmbPointYValues.Items.Clear()
+            da.Fill(ds, "myData")
+
+            If ds.Tables(0).Columns.Count > 0 Then
+                Dim I As Integer 'Loop index
+                Dim Name As String
+                For I = 1 To ds.Tables(0).Columns.Count
+                    Name = ds.Tables(0).Columns(I - 1).ColumnName
+                    cmbPointXValues.Items.Add(Name)
+                    cmbPointYValues.Items.Add(Name)
+                Next
+            End If
+        Catch ex As Exception
+            Message.AddWarning("Error applying query: " & ex.Message & vbCrLf)
+        End Try
+
+    End Sub
+
+    Private Sub txtPointChartQuery_LostFocus(sender As Object, e As EventArgs) Handles txtPointChartQuery.LostFocus
+        UpdateChartCrossPlotsTab()
+    End Sub
+
+    Private Sub cmbPointChartDb_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbPointChartDb.SelectedIndexChanged
+        'The selected Point Chart database has been changed.
+        Select Case cmbPointChartDb.SelectedItem.ToString
+            Case "Share Prices"
+                txtPointChartDbPath.Text = SharePriceDbPath
+            Case "Financials"
+                txtPointChartDbPath.Text = FinancialsDbPath
+            Case "Calculations"
+                txtPointChartDbPath.Text = CalculationsDbPath
+        End Select
+        FillPointChartDataTableList()
+
+    End Sub
+
+    Private Sub FillPointChartDataTableList()
+        'Fill the lstSelectTable listbox with the available tables in the selected database.
+
+        'Database access for MS Access:
+        Dim connectionString As String 'Declare a connection string for MS Access - defines the database or server to be used.
+        Dim conn As System.Data.OleDb.OleDbConnection 'Declare a connection for MS Access - used by the Data Adapter to connect to and disconnect from the database.
+        Dim dt As DataTable
+
+        lstTables.Items.Clear()
+        lstFields.Items.Clear()
+
+        'Specify the connection string:
+        'Access 2003
+        'connectionString = "provider=Microsoft.Jet.OLEDB.4.0;" + _
+        '"data source = " + txtDatabase.Text
+
+        If txtPointChartDbPath.Text = "" Then
+            Exit Sub
+        End If
+
+        'Access 2007:
+        'connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
+        '"data source = " + txtDatabase.Text
+        connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
+        "data source = " + txtPointChartDbPath.Text 'DatabasePath
+
+        'Connect to the Access database:
+        conn = New System.Data.OleDb.OleDbConnection(connectionString)
+
+        Try
+            conn.Open()
+
+            Dim restrictions As String() = New String() {Nothing, Nothing, Nothing, "TABLE"} 'This restriction removes system tables
+            dt = conn.GetSchema("Tables", restrictions)
+
+            'Fill lstSelectTable
+            Dim dr As DataRow
+            Dim I As Integer 'Loop index
+            Dim MaxI As Integer
+
+            MaxI = dt.Rows.Count
+            For I = 0 To MaxI - 1
+                dr = dt.Rows(0)
+                lstTables.Items.Add(dt.Rows(I).Item(2).ToString)
+            Next I
+
+            conn.Close()
+        Catch ex As Exception
+            Message.Add("Error opening database: " & txtPointChartDbPath.Text & vbCrLf)
+            Message.Add(ex.Message & vbCrLf & vbCrLf)
+        End Try
+    End Sub
+
+    Private Sub lstTables_Click(sender As Object, e As EventArgs) Handles lstTables.Click
+        FillPointChartTableLstFields()
+    End Sub
+
+    Private Sub FillPointChartTableLstFields()
+        'Fill the lstSelectField listbox with the availalble fields in the selected table.
+
+        'Database access for MS Access:
+        Dim connectionString As String 'Declare a connection string for MS Access - defines the database or server to be used.
+        Dim conn As System.Data.OleDb.OleDbConnection 'Declare a connection for MS Access - used by the Data Adapter to connect to and disconnect from the database.
+        Dim commandString As String 'Declare a command string - contains the query to be passed to the database.
+        Dim ds As DataSet 'Declate a Dataset.
+        Dim dt As DataTable
+
+        If lstTables.SelectedIndex = -1 Then 'No item is selected
+            lstFields.Items.Clear()
+
+        Else 'A table has been selected. List its fields:
+            lstFields.Items.Clear()
+
+            'Specify the connection string (Access 2007):
+            connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
+            "data source = " + txtPointChartDbPath.Text 'txtDatabase.Text
+
+            'Connect to the Access database:
+            conn = New System.Data.OleDb.OleDbConnection(connectionString)
+            conn.Open()
+
+            'Specify the commandString to query the database:
+            commandString = "SELECT Top 500 * FROM " + lstTables.SelectedItem.ToString
+            Dim dataAdapter As New System.Data.OleDb.OleDbDataAdapter(commandString, conn)
+            ds = New DataSet
+            dataAdapter.Fill(ds, "SelTable") 'ds was defined earlier as a DataSet
+            dt = ds.Tables("SelTable")
+
+            Dim NFields As Integer
+            NFields = dt.Columns.Count
+            Dim I As Integer
+            For I = 0 To NFields - 1
+                lstFields.Items.Add(dt.Columns(I).ColumnName.ToString)
+            Next
+
+            conn.Close()
+
+        End If
+    End Sub
+
+    Public Sub FormatXmlText(ByRef rtbControl As RichTextBox)
+        'Format the XML text in rtbSequence rich text box control:
+
+        Dim Posn As Integer
+        Dim SelLen As Integer
+        Posn = rtbControl.SelectionStart
+        SelLen = rtbControl.SelectionLength
+
+        'Set colour of the start tag names (for a tag without attributes):
+        Dim RegExString2 As String = "(?<=<)([A-Za-z\d]+)(?=>)"
+        Dim myRegEx2 As New System.Text.RegularExpressions.Regex(RegExString2)
+        Dim myMatches2 As System.Text.RegularExpressions.MatchCollection
+        myMatches2 = myRegEx2.Matches(rtbControl.Text)
+        For Each aMatch As System.Text.RegularExpressions.Match In myMatches2
+            rtbControl.Select(aMatch.Index, aMatch.Length)
+            rtbControl.SelectionColor = Color.Crimson
+            Dim f As Font = rtbControl.SelectionFont
+            rtbControl.SelectionFont = New Font(f.Name, f.Size, FontStyle.Regular)
+        Next
+
+        'Set colour of the start tag names (for a tag with attributes):
+        Dim RegExString2b As String = "(?<=<)([A-Za-z\d]+)(?= [A-Za-z\d]+=""[A-Za-z\d ]+"">)"
+        Dim myRegEx2b As New System.Text.RegularExpressions.Regex(RegExString2b)
+        Dim myMatches2b As System.Text.RegularExpressions.MatchCollection
+        myMatches2b = myRegEx2b.Matches(rtbControl.Text)
+        For Each aMatch As System.Text.RegularExpressions.Match In myMatches2b
+            rtbControl.Select(aMatch.Index, aMatch.Length)
+            rtbControl.SelectionColor = Color.Crimson
+            Dim f As Font = rtbControl.SelectionFont
+            rtbControl.SelectionFont = New Font(f.Name, f.Size, FontStyle.Regular)
+        Next
+
+        'Set colour of the attribute names (for a tag with attributes):
+        Dim RegExString2c As String = "(?<=<[A-Za-z\d]+ )([A-Za-z\d]+)(?==""[A-Za-z\d ]+"">)"
+        Dim myRegEx2c As New System.Text.RegularExpressions.Regex(RegExString2c)
+        Dim myMatches2c As System.Text.RegularExpressions.MatchCollection
+        myMatches2c = myRegEx2c.Matches(rtbControl.Text)
+        For Each aMatch As System.Text.RegularExpressions.Match In myMatches2c
+            rtbControl.Select(aMatch.Index, aMatch.Length)
+            rtbControl.SelectionColor = Color.Crimson
+            Dim f As Font = rtbControl.SelectionFont
+            rtbControl.SelectionFont = New Font(f.Name, f.Size, FontStyle.Regular)
+        Next
+
+        'Set colour of the attribute values (for a tag with attributes):
+        Dim RegExString2d As String = "(?<=<[A-Za-z\d]+ [A-Za-z\d]+="")([A-Za-z\d ]+)(?="">)"
+        Dim myRegEx2d As New System.Text.RegularExpressions.Regex(RegExString2d)
+        Dim myMatches2d As System.Text.RegularExpressions.MatchCollection
+        myMatches2d = myRegEx2d.Matches(rtbControl.Text)
+        For Each aMatch As System.Text.RegularExpressions.Match In myMatches2d
+            rtbControl.Select(aMatch.Index, aMatch.Length)
+            rtbControl.SelectionColor = Color.Black
+            Dim f As Font = rtbControl.SelectionFont
+            rtbControl.SelectionFont = New Font(f.Name, f.Size, FontStyle.Bold)
+        Next
+
+        'Set colour of the end tag names:
+        Dim RegExString3 As String = "(?<=</)([A-Za-z\d]+)(?=>)"
+        Dim myRegEx3 As New System.Text.RegularExpressions.Regex(RegExString3)
+        Dim myMatches3 As System.Text.RegularExpressions.MatchCollection
+        myMatches3 = myRegEx3.Matches(rtbControl.Text)
+        For Each aMatch As System.Text.RegularExpressions.Match In myMatches3
+            rtbControl.Select(aMatch.Index, aMatch.Length)
+            rtbControl.SelectionColor = Color.Crimson
+            Dim f As Font = rtbControl.SelectionFont
+            rtbControl.SelectionFont = New Font(f.Name, f.Size, FontStyle.Regular)
+        Next
+
+        'Set colour of comments:
+        Dim RegExString4 As String = "(?<=<!--)([A-Za-z\d \.,_:]+)(?=-->)"
+        Dim myRegEx4 As New System.Text.RegularExpressions.Regex(RegExString4)
+        Dim myMatches4 As System.Text.RegularExpressions.MatchCollection
+        myMatches4 = myRegEx4.Matches(rtbControl.Text)
+        For Each aMatch As System.Text.RegularExpressions.Match In myMatches4
+            rtbControl.Select(aMatch.Index, aMatch.Length)
+            rtbControl.SelectionColor = Color.Gray
+            Dim f As Font = rtbControl.SelectionFont
+            rtbControl.SelectionFont = New Font(f.Name, f.Size, FontStyle.Regular)
+        Next
+
+        'Set colour of "<" and ">" characters to blue
+        Dim RegExString As String = "</|<!--|-->|<|>"
+        Dim myRegEx As New System.Text.RegularExpressions.Regex(RegExString)
+        Dim myMatches As System.Text.RegularExpressions.MatchCollection
+        myMatches = myRegEx.Matches(rtbControl.Text)
+        For Each aMatch As System.Text.RegularExpressions.Match In myMatches
+            rtbControl.Select(aMatch.Index, aMatch.Length)
+            rtbControl.SelectionColor = Color.Blue
+            Dim f As Font = rtbControl.SelectionFont
+            rtbControl.SelectionFont = New Font(f.Name, f.Size, FontStyle.Regular)
+        Next
+
+        'Set tag contents (between ">" and "</") to black, bold
+        Dim RegExString5 As String = "(?<=>)([A-Za-z\d \.,'\:\-\[\]\&\*\;\\=/+#_]+)(?=</)"
+        Dim myRegEx5 As New System.Text.RegularExpressions.Regex(RegExString5)
+        Dim myMatches5 As System.Text.RegularExpressions.MatchCollection
+        myMatches5 = myRegEx5.Matches(rtbControl.Text)
+        For Each aMatch As System.Text.RegularExpressions.Match In myMatches5
+            rtbControl.Select(aMatch.Index, aMatch.Length)
+            rtbControl.SelectionColor = Color.Black
+            Dim f As Font = rtbControl.SelectionFont
+            rtbControl.SelectionFont = New Font(f.Name, f.Size, FontStyle.Bold)
+        Next
+
+        'Remove blank lines
+        Dim RegExString6 As String = "(?<=\n)\ *\n"
+        Dim myRegEx6 As New System.Text.RegularExpressions.Regex(RegExString6)
+        Dim myMatches6 As System.Text.RegularExpressions.MatchCollection
+        myMatches6 = myRegEx6.Matches(rtbControl.Text)
+        For Each aMatch As System.Text.RegularExpressions.Match In myMatches6
+            rtbControl.Select(aMatch.Index, aMatch.Length)
+            rtbControl.SelectedText = ""
+        Next
+
+        rtbControl.SelectionStart = Posn
+        rtbControl.SelectionLength = SelLen
+
+    End Sub
+
+    Private Sub btnChartTitleFont_Click(sender As Object, e As EventArgs) Handles btnChartTitleFont.Click
+        'Edit chart title font
+        FontDialog1.Font = txtChartTitle.Font
+        FontDialog1.ShowDialog()
+        txtChartTitle.Font = FontDialog1.Font
+    End Sub
+
+    Private Sub btnSaveStockDefaults_Click(sender As Object, e As EventArgs) Handles btnSaveStockDefaults.Click
+        'Save the Stock Chart Default Settings in a file:
+
+        Try
+            Dim xmlSeq As System.Xml.Linq.XDocument = XDocument.Parse(rtbStockChartDefaults.Text)
+
+            Dim SettingsFileName As String = ""
+
+            If Trim(txtStockChartSettings.Text).EndsWith(".SPChartDefaults") Then
+                SettingsFileName = Trim(txtStockChartSettings.Text)
+            Else
+                SettingsFileName = Trim(txtStockChartSettings.Text) & ".SPChartDefaults"
+                txtStockChartSettings.Text = SettingsFileName
+            End If
+
+            Project.SaveXmlData(SettingsFileName, xmlSeq)
+            Message.Add("Stock Chart Default Settings saved OK" & vbCrLf)
+        Catch ex As Exception
+            Message.AddWarning(ex.Message & vbCrLf)
+            Beep()
+        End Try
+
+    End Sub
+
+    Private Sub btnOpenStockChartDefaults_Click(sender As Object, e As EventArgs) Handles btnOpenStockChartDefaults.Click
+        'Open a Stock Chart Default Settings file:
+
+        Dim SelectedFileName As String = ""
+
+        SelectedFileName = Project.SelectDataFile("Share Price Chart Defaults", "SPChartDefaults")
+        Message.Add("Selected Stock Chart Default Settings: " & SelectedFileName & vbCrLf)
+
+        txtStockChartSettings.Text = SelectedFileName
+
+        Project.ReadXmlData(SelectedFileName, StockChartDefaults)
+
+        If StockChartDefaults Is Nothing Then
+            Exit Sub
+        End If
+
+        rtbStockChartDefaults.Text = StockChartDefaults.ToString
+
+        FormatXmlText(rtbStockChartDefaults)
+
+    End Sub
+
+    Private Sub DesignPointChartQuery_Apply(myQuery As String) Handles DesignPointChartQuery.Apply
+        txtPointChartQuery.Text = myQuery
+    End Sub
+
+    Private Sub btnPointChartTitleFont_Click(sender As Object, e As EventArgs) Handles btnPointChartTitleFont.Click
+        'Edit chart title font
+        FontDialog1.Font = txtPointChartTitle.Font
+        FontDialog1.ShowDialog()
+        txtPointChartTitle.Font = FontDialog1.Font
+
+    End Sub
+
+    Private Sub btnDisplayPointChart_Click(sender As Object, e As EventArgs) Handles btnDisplayPointChart.Click
+        DisplayPointChart()
+    End Sub
+
+    Private Sub DisplayPointChart()
+        'Display Cross Plot Chart.
+        If chkUsePointChartDefaults.Checked Then
+            DisplayPointChartUsingDefaults()
+        Else
+            DisplayPointChartNoDefaults()
+        End If
+    End Sub
+
+    Private Sub DisplayPointChartUsingDefaults()
+        'Display Point Chart.
+        'Use the default parameters in PointChartDefaults
+        'Send the instructions to the Chart application to display the point chart (crossplot).
+
+        If PointChartDefaults Is Nothing Then
+            Message.AddWarning("No Point Chart default settings loaded." & vbCrLf)
+            DisplayPointChartNoDefaults()
+            Exit Sub
+        End If
+
+        'Create the xml instructions
+        Dim decl As New XDeclaration("1.0", "utf-8", "yes")
+        Dim doc As New XDocument(decl, Nothing) 'Create an XDocument to store the instructions.
+        Dim xmessage As New XElement("XMsg") 'This indicates the start of the message in the XMessage class
+
+        Dim clientAppNetName As New XElement("ClientAppNetName", AppNetName)
+        xmessage.Add(clientAppNetName)
+
+        Dim clientName As New XElement("ClientName", ApplicationInfo.Name) 'This tells the coordinate server the name of the client making the request.
+        xmessage.Add(clientName)
+
+        Dim clientLocn As New XElement("ClientLocn", "PointChart")
+        xmessage.Add(clientLocn)
+
+        Dim chartSettings As New XElement("PointChartSettings")
+
+        Dim chartType As New XElement("ChartType", "Point")
+        chartSettings.Add(chartType)
+
+        Dim commandClearChart As New XElement("Command", "ClearChart")
+        chartSettings.Add(commandClearChart)
+
+        Dim inputData As New XElement("InputData")
+        Dim dataType As New XElement("Type", "Database")
+        inputData.Add(dataType)
+
+        Dim databasePath As New XElement("DatabasePath", txtPointChartDbPath.Text)
+        inputData.Add(databasePath)
+
+        Dim dataDescription As New XElement("DataDescription", txtPointSeriesName.Text)
+        inputData.Add(dataDescription)
+
+        Dim databaseQuery As New XElement("DatabaseQuery", txtPointChartQuery.Text)
+        inputData.Add(databaseQuery)
+
+        chartSettings.Add(inputData)
+
+        Dim chartProperties As New XElement("ChartProperties")
+        Dim seriesName As New XElement("SeriesName", txtPointSeriesName.Text)
+        chartProperties.Add(seriesName)
+        Dim xValuesFieldName As New XElement("XValuesFieldName", cmbPointXValues.SelectedItem.ToString)
+        chartProperties.Add(xValuesFieldName)
+        Dim yValuesFieldName As New XElement("YValuesFieldName", cmbPointYValues.SelectedItem.ToString)
+        chartProperties.Add(yValuesFieldName)
+        chartSettings.Add(chartProperties)
+
+        Dim chartTitle As New XElement("ChartTitle")
+        Dim chartTitleLabelName As New XElement("LabelName", "Label1")
+        chartTitle.Add(chartTitleLabelName)
+        Dim chartTitleText As New XElement("Text", txtPointChartTitle.Text)
+        chartTitle.Add(chartTitleText)
+
+        If PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<FontName>.Value <> Nothing Then
+            Dim chartTitleFontName As New XElement("FontName", PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<FontName>.Value)
+            chartTitle.Add(chartTitleFontName)
+        Else
+            Message.AddWarning("Default Chart Title Font Name settings not found." & vbCrLf)
+            Dim chartTitleFontName As New XElement("FontName", txtPointChartTitle.Font.Name)
+            chartTitle.Add(chartTitleFontName)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Color>.Value <> Nothing Then
+            Dim chartTitleColor As New XElement("Color", PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Color>.Value)
+            chartTitle.Add(chartTitleColor)
+        Else
+            Message.AddWarning("Default Chart Title Color settings not found." & vbCrLf)
+            Dim chartTitleColor As New XElement("Color", txtChartTitle.ForeColor)
+            chartTitle.Add(chartTitleColor)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Size>.Value <> Nothing Then
+            Dim chartTitleSize As New XElement("Size", PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Size>.Value)
+            chartTitle.Add(chartTitleSize)
+        Else
+            Message.AddWarning("Default Chart Title Size settings not found." & vbCrLf)
+            Dim chartTitleSize As New XElement("Size", txtChartTitle.Font.Size)
+            chartTitle.Add(chartTitleSize)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Bold>.Value <> Nothing Then
+            Dim chartTitleBold As New XElement("Bold", PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Bold>.Value)
+            chartTitle.Add(chartTitleBold)
+        Else
+            Message.AddWarning("Default Chart Title Bold settings not found." & vbCrLf)
+            Dim chartTitleBold As New XElement("Bold", txtChartTitle.Font.Bold)
+            chartTitle.Add(chartTitleBold)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Italic>.Value <> Nothing Then
+            Dim chartTitleItalic As New XElement("Italic", PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Italic>.Value)
+            chartTitle.Add(chartTitleItalic)
+        Else
+            Message.AddWarning("Default Chart Title Italic settings not found." & vbCrLf)
+            Dim chartTitleItalic As New XElement("Italic", txtChartTitle.Font.Italic)
+            chartTitle.Add(chartTitleItalic)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Underline>.Value <> Nothing Then
+            Dim chartTitleUnderline As New XElement("Underline", PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Underline>.Value)
+            chartTitle.Add(chartTitleUnderline)
+        Else
+            Message.AddWarning("Default Chart Title Underline settings not found." & vbCrLf)
+            Dim chartTitleUnderline As New XElement("Underline", txtChartTitle.Font.Underline)
+            chartTitle.Add(chartTitleUnderline)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Strikeout>.Value <> Nothing Then
+            Dim chartTitleStrikeout As New XElement("Strikeout", PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Strikeout>.Value)
+            chartTitle.Add(chartTitleStrikeout)
+        Else
+            Message.AddWarning("Default Chart Title Strikeout settings not found." & vbCrLf)
+            Dim chartTitleStrikeout As New XElement("Strikeout", txtChartTitle.Font.Strikeout)
+            chartTitle.Add(chartTitleStrikeout)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Alignment>.Value <> Nothing Then
+            Dim chartTitleAlignment As New XElement("Alignment", PointChartDefaults.<PointChart>.<Settings>.<ChartTitle>.<Alignment>.Value)
+            chartTitle.Add(chartTitleAlignment)
+        Else
+            Message.AddWarning("Default Chart Title Alignment settings not found." & vbCrLf)
+            Dim chartTitleAlignment As New XElement("Alignment", cmbAlignment.SelectedItem.ToString)
+            chartTitle.Add(chartTitleAlignment)
+        End If
+
+        chartSettings.Add(chartTitle)
+
+        Dim xAxis As New XElement("XAxis")
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleText>.Value <> Nothing Then
+            Dim xAxisTitleText As New XElement("TitleText", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleText>.Value)
+            xAxis.Add(xAxisTitleText)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleFontName>.Value <> Nothing Then
+            Dim xAxisTitleFontName As New XElement("TitleFontName", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleFontName>.Value)
+            xAxis.Add(xAxisTitleFontName)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleColor>.Value <> Nothing Then
+            Dim xAxisTitleColor As New XElement("TitleColor", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleColor>.Value)
+            xAxis.Add(xAxisTitleColor)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleSize>.Value <> Nothing Then
+            Dim xAxisTitleSize As New XElement("TitleSize", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleSize>.Value)
+            xAxis.Add(xAxisTitleSize)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleBold>.Value <> Nothing Then
+            Dim xAxisTitleBold As New XElement("TitleBold", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleBold>.Value)
+            xAxis.Add(xAxisTitleBold)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleItalic>.Value <> Nothing Then
+            Dim xAxisTitleItalic As New XElement("TitleItalic", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleItalic>.Value)
+            xAxis.Add(xAxisTitleItalic)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleUnderline>.Value <> Nothing Then
+            Dim xAxisTitleUnderline As New XElement("TitleUnderline", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleUnderline>.Value)
+            xAxis.Add(xAxisTitleUnderline)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleStrikeout>.Value <> Nothing Then
+            Dim xAxisTitleStrikeout As New XElement("TitleStrikeout", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleStrikeout>.Value)
+            xAxis.Add(xAxisTitleStrikeout)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleAlignment>.Value <> Nothing Then
+            Dim xAxisTitleAlignment As New XElement("TitleAlignment", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<TitleAlignment>.Value)
+            xAxis.Add(xAxisTitleAlignment)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoMinimum>.Value <> Nothing Then
+            Dim xAxisAutoMinimum As New XElement("AutoMinimum", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoMinimum>.Value)
+            xAxis.Add(xAxisAutoMinimum)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<Minimum>.Value <> Nothing Then
+            Dim xAxisMinimum As New XElement("Minimum", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<Minimum>.Value)
+            xAxis.Add(xAxisMinimum)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoMaximum>.Value <> Nothing Then
+            Dim xAxisAutoMaximum As New XElement("AutoMaximum", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoMaximum>.Value)
+            xAxis.Add(xAxisAutoMaximum)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<Maximum>.Value <> Nothing Then
+            Dim xAxisMaximum As New XElement("Maximum", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<Maximum>.Value)
+            xAxis.Add(xAxisMaximum)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoInterval>.Value <> Nothing Then
+            Dim xAxisAutoInterval As New XElement("AutoInterval", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoInterval>.Value)
+            xAxis.Add(xAxisAutoInterval)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<MajorGridInterval>.Value <> Nothing Then
+            Dim xAxisMajorGridInterval As New XElement("MajorGridInterval", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<MajorGridInterval>.Value)
+            xAxis.Add(xAxisMajorGridInterval)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoMajorGridInterval>.Value <> Nothing Then
+            Dim xAxisAutoMajorGridInterval As New XElement("AutoMajorGridInterval", PointChartDefaults.<PointChart>.<Settings>.<XAxis>.<AutoMajorGridInterval>.Value)
+            xAxis.Add(xAxisAutoMajorGridInterval)
+        End If
+
+        chartSettings.Add(xAxis)
+
+
+        Dim yAxis As New XElement("YAxis")
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleText>.Value <> Nothing Then
+            Dim yAxisTitleText As New XElement("TitleText", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleText>.Value)
+            yAxis.Add(yAxisTitleText)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleFontName>.Value <> Nothing Then
+            Dim yAxisTitleFontName As New XElement("TitleFontName", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleFontName>.Value)
+            yAxis.Add(yAxisTitleFontName)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleColor>.Value <> Nothing Then
+            Dim yAxisTitleColor As New XElement("TitleColor", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleColor>.Value)
+            yAxis.Add(yAxisTitleColor)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleSize>.Value <> Nothing Then
+            Dim yAxisTitleSize As New XElement("TitleSize", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleSize>.Value)
+            yAxis.Add(yAxisTitleSize)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleBold>.Value <> Nothing Then
+            Dim yAxisTitleBold As New XElement("TitleBold", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleBold>.Value)
+            yAxis.Add(yAxisTitleBold)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleItalic>.Value <> Nothing Then
+            Dim yAxisTitleItalic As New XElement("TitleItalic", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleItalic>.Value)
+            yAxis.Add(yAxisTitleItalic)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleUnderline>.Value <> Nothing Then
+            Dim yAxisTitleUnderline As New XElement("TitleUnderline", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleUnderline>.Value)
+            yAxis.Add(yAxisTitleUnderline)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleStrikeout>.Value <> Nothing Then
+            Dim yAxisTitleStrikeout As New XElement("TitleStrikeout", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleStrikeout>.Value)
+            yAxis.Add(yAxisTitleStrikeout)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleAlignment>.Value <> Nothing Then
+            Dim yAxisTitleAlignment As New XElement("TitleAlignment", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<TitleAlignment>.Value)
+            yAxis.Add(yAxisTitleAlignment)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<AutoMinimum>.Value <> Nothing Then
+            Dim yAxisAutoMinimum As New XElement("AutoMinimum", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<AutoMinimum>.Value)
+            yAxis.Add(yAxisAutoMinimum)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<Minimum>.Value <> Nothing Then
+            Dim yAxisMinimum As New XElement("Minimum", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<Minimum>.Value)
+            yAxis.Add(yAxisMinimum)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<AutoMaximum>.Value <> Nothing Then
+            Dim yAxisAutoMaximum As New XElement("AutoMaximum", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<AutoMaximum>.Value)
+            yAxis.Add(yAxisAutoMaximum)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<Maximum>.Value <> Nothing Then
+            Dim yAxisMaximum As New XElement("Maximum", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<Maximum>.Value)
+            yAxis.Add(yAxisMaximum)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<AutoInterval>.Value <> Nothing Then
+            Dim yAxisAutoInterval As New XElement("AutoInterval", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<AutoInterval>.Value)
+            yAxis.Add(yAxisAutoInterval)
+        End If
+
+        If PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<MajorGridInterval>.Value <> Nothing Then
+            Dim yAxisMajorGridInterval As New XElement("MajorGridInterval", PointChartDefaults.<PointChart>.<Settings>.<YAxis>.<MajorGridInterval>.Value)
+            yAxis.Add(yAxisMajorGridInterval)
+        End If
+
+        chartSettings.Add(yAxis)
+
+
+        Dim commandDrawChart As New XElement("Command", "DrawChart")
+        chartSettings.Add(commandDrawChart)
+
+        xmessage.Add(chartSettings)
+        doc.Add(xmessage)
+
+        If IsNothing(client) Then
+            Message.AddWarning("No client connection available!" & vbCrLf)
+            Beep()
+        Else
+            client.SendMessageAsync(AppNetName, "ADVL_Chart_1", doc.ToString)
+            Message.XAddText("Message sent to " & "ADVL_Chart_1" & ":" & vbCrLf, "XmlSentNotice")
+            Message.XAddXml(doc.ToString)
+            Message.XAddText(vbCrLf, "Message") 'Add extra line
+        End If
+    End Sub
+
+    Private Sub DisplayPointChartNoDefaults()
+        'Display the point chart without using the default chart settings.
+
+        'Send the instructions to the Chart application to display the stock chart.
+        Dim decl As New XDeclaration("1.0", "utf-8", "yes")
+        Dim doc As New XDocument(decl, Nothing) 'Create an XDocument to store the instructions.
+
+        Try
+            'Create the xml instructions
+
+            Dim xmessage As New XElement("XMsg") 'This indicates the start of the message in the XMessage class
+
+            'ADDED 3Feb19:
+            Dim clientAppNetName As New XElement("ClientAppNetName", AppNetName)
+            xmessage.Add(clientAppNetName)
+
+            Dim clientName As New XElement("ClientName", ApplicationInfo.Name) 'This tells the coordinate server the name of the client making the request.
+            xmessage.Add(clientName)
+
+            Dim clientLocn As New XElement("ClientLocn", "PointChart")
+            xmessage.Add(clientLocn)
+
+            Dim chartSettings As New XElement("PointChartSettings")
+
+            Dim chartType As New XElement("ChartType", "Point")
+            chartSettings.Add(chartType)
+
+            Dim commandClearChart As New XElement("Command", "ClearChart")
+            chartSettings.Add(commandClearChart)
+
+            Dim inputData As New XElement("InputData")
+            Dim dataType As New XElement("Type", "Database")
+            inputData.Add(dataType)
+            Dim databasePath As New XElement("DatabasePath", txtPointChartDbPath.Text)
+            inputData.Add(databasePath)
+            Dim dataDescription As New XElement("DataDescription", txtPointSeriesName.Text)
+            inputData.Add(dataDescription)
+            Dim databaseQuery As New XElement("DatabaseQuery", txtPointChartQuery.Text)
+            inputData.Add(databaseQuery)
+            chartSettings.Add(inputData)
+
+            Dim chartProperties As New XElement("ChartProperties")
+            Dim seriesName As New XElement("SeriesName", txtPointSeriesName.Text)
+            chartProperties.Add(seriesName)
+            Dim xValuesFieldName As New XElement("XValuesFieldName", cmbPointXValues.SelectedItem.ToString)
+            chartProperties.Add(xValuesFieldName)
+            Dim yValuesFieldName As New XElement("YValuesFieldName", cmbPointYValues.SelectedItem.ToString)
+            chartProperties.Add(yValuesFieldName)
+            chartSettings.Add(chartProperties)
+
+            Dim chartTitle As New XElement("ChartTitle")
+            Dim chartTitleLabelName As New XElement("LabelName", "Label1")
+            chartTitle.Add(chartTitleLabelName)
+            Dim chartTitleText As New XElement("Text", txtPointChartTitle.Text)
+            chartTitle.Add(chartTitleText)
+            Dim chartTitleFontName As New XElement("FontName", txtPointChartTitle.Font.Name)
+            chartTitle.Add(chartTitleFontName)
+            If txtPointChartTitle.ForeColor.Name.Contains("Color [WindowText]") Then
+                Dim chartTitleColor As New XElement("Color", "Color [Black]")
+                chartTitle.Add(chartTitleColor)
+            Else
+                Dim chartTitleColor As New XElement("Color", txtPointChartTitle.ForeColor)
+                chartTitle.Add(chartTitleColor)
+            End If
+
+            Dim chartTitleSize As New XElement("Size", txtPointChartTitle.Font.Size)
+            chartTitle.Add(chartTitleSize)
+            Dim chartTitleBold As New XElement("Bold", txtPointChartTitle.Font.Bold)
+            chartTitle.Add(chartTitleBold)
+            Dim chartTitleItalic As New XElement("Italic", txtPointChartTitle.Font.Italic)
+            chartTitle.Add(chartTitleItalic)
+            Dim chartTitleUnderline As New XElement("Underline", txtPointChartTitle.Font.Underline)
+            chartTitle.Add(chartTitleUnderline)
+            Dim chartTitleStrikeout As New XElement("Strikeout", txtPointChartTitle.Font.Strikeout)
+            chartTitle.Add(chartTitleStrikeout)
+            Dim chartTitleAlignment As New XElement("Alignment", cmbPointChartAlignment.SelectedItem.ToString)
+            chartTitle.Add(chartTitleAlignment)
+            chartSettings.Add(chartTitle)
+
+            Dim xAxis As New XElement("XAxis")
+            If chkAutoXRange.Checked Then
+                Dim autoMinimum As New XElement("AutoMinimum", "true")
+                xAxis.Add(autoMinimum)
+                chartSettings.Add(xAxis)
+            Else
+                Dim autoMinimum As New XElement("AutoMinimum", "false")
+                xAxis.Add(autoMinimum)
+                Dim minimum As New XElement("Minimum", txtPointXMin.Text)
+                xAxis.Add(minimum)
+                Dim autoMaximum As New XElement("AutoMaximum", "false")
+                xAxis.Add(autoMaximum)
+                Dim maximum As New XElement("Maximum", txtPointXMax.Text)
+                xAxis.Add(maximum)
+                chartSettings.Add(xAxis)
+            End If
+
+            Dim yAxis As New XElement("YAxis")
+            If chkAutoYRange.Checked Then
+                Dim autoMinimum As New XElement("AutoMinimum", "true")
+                yAxis.Add(autoMinimum)
+                chartSettings.Add(yAxis)
+            Else
+                Dim autoMinimum As New XElement("AutoMinimum", "false")
+                yAxis.Add(autoMinimum)
+                Dim minimum As New XElement("Minimum", txtPointYMin.Text)
+                yAxis.Add(minimum)
+                Dim autoMaximum As New XElement("AutoMaximum", "false")
+                yAxis.Add(autoMaximum)
+                Dim maximum As New XElement("Maximum", txtPointYMax.Text)
+                yAxis.Add(maximum)
+                chartSettings.Add(yAxis)
+            End If
+
+            Dim commandDrawChart As New XElement("Command", "DrawChart")
+            chartSettings.Add(commandDrawChart)
+
+            xmessage.Add(chartSettings)
+            doc.Add(xmessage)
+        Catch ex As Exception
+            Message.AddWarning("Error creating Point Chart instructions: " & ex.Message & vbCrLf)
+        End Try
+
+        If IsNothing(client) Then
+            Message.AddWarning("No client connection available!" & vbCrLf)
+            Beep()
+        Else
+            client.SendMessageAsync(AppNetName, "ADVL_Chart_1", doc.ToString)
+            Message.XAddText("Message sent to " & "ADVL_Chart_1" & ":" & vbCrLf, "XmlSentNotice")
+            Message.XAddXml(doc.ToString)
+            Message.XAddText(vbCrLf, "Message") 'Add extra line
+        End If
+    End Sub
+
+    Private Sub btnGetPointChartDefaults_Click(sender As Object, e As EventArgs) Handles btnGetPointChartDefaults.Click
+        'Send a request to ADVL_Charts_1 for the current Point Chart settings.
+
+        'Create the xml instructions
+        Dim decl As New XDeclaration("1.0", "utf-8", "yes")
+        Dim doc As New XDocument(decl, Nothing) 'Create an XDocument to store the instructions.
+        Dim xmessage As New XElement("XMsg") 'This indicates the start of the message in the XMessage class
+
+        Dim clientAppNetName As New XElement("ClientAppNetName", AppNetName)
+        xmessage.Add(clientAppNetName)
+
+        Dim clientName As New XElement("ClientName", ApplicationInfo.Name) 'This tells the coordinate server the name of the client making the request.
+        xmessage.Add(clientName)
+
+        Dim clientLocn As New XElement("ClientLocn", "PointChart")
+        xmessage.Add(clientLocn)
+
+        Dim commandGetSettings As New XElement("Command", "GetPointChartSettings")
+        xmessage.Add(commandGetSettings)
+
+        doc.Add(xmessage)
+
+        If IsNothing(client) Then
+            Message.AddWarning("No client connection available!" & vbCrLf)
+            Beep()
+        Else
+            client.SendMessageAsync(AppNetName, "ADVL_Chart_1", doc.ToString)
+            Message.XAddText("Message sent to " & "ADVL_Chart_1" & ":" & vbCrLf, "XmlSentNotice")
+            Message.XAddXml(doc.ToString)
+            Message.XAddText(vbCrLf, "Message") 'Add extra line
+        End If
+    End Sub
+
+    Private Sub btnSavePointDefaults_Click(sender As Object, e As EventArgs) Handles btnSavePointDefaults.Click
+        'Save the Point Chart Default Settings in a file:
+
+        Try
+            Dim xmlSeq As System.Xml.Linq.XDocument = XDocument.Parse(rtbPointChartDefaults.Text)
+
+            Dim SettingsFileName As String = ""
+
+            If Trim(txtPointChartSettings.Text).EndsWith(".PointChartDefaults") Then
+                SettingsFileName = Trim(txtPointChartSettings.Text)
+            Else
+                SettingsFileName = Trim(txtPointChartSettings.Text) & ".PointChartDefaults"
+                txtPointChartSettings.Text = SettingsFileName
+            End If
+
+            Project.SaveXmlData(SettingsFileName, xmlSeq)
+            Message.Add("Point Chart Default Settings saved OK" & vbCrLf)
+        Catch ex As Exception
+            Message.AddWarning(ex.Message & vbCrLf)
+            Beep()
+        End Try
+
+    End Sub
+
+    Private Sub btnOpenPointChartDefaults_Click(sender As Object, e As EventArgs) Handles btnOpenPointChartDefaults.Click
+        'Open a Point Chart Default Settings file:
+
+        Dim SelectedFileName As String = ""
+
+        SelectedFileName = Project.SelectDataFile("Cross Plot Chart Defaults", "PointChartDefaults")
+        Message.Add("Selected Cross Plot Chart Default Settings: " & SelectedFileName & vbCrLf)
+
+        txtPointChartSettings.Text = SelectedFileName
+
+        Project.ReadXmlData(SelectedFileName, PointChartDefaults)
+
+        If PointChartDefaults Is Nothing Then
+            Exit Sub
+        End If
+
+        rtbPointChartDefaults.Text = PointChartDefaults.ToString
+
+        FormatXmlText(rtbPointChartDefaults)
+
+    End Sub
+
+
+#End Region 'Charts Tab -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #Region " Utilities Tab" '=====================================================================================================================================================================
 
@@ -6604,20 +9810,15 @@ Public Class Main
         Select Case cmbStartDateNDaysCalc.SelectedItem.ToString
             Case "Date of Start Date + N Days"
                 Dim StartDate As DateTime = DateTime.ParseExact(txtStartDate.Text, "dd MMM yyyy", Nothing)
-                'Dim StartDate As Date = Date.Parse(txtStartDate.Text)
                 Dim NDays As Double = Val(txtNDays.Text)
                 Dim calcDate As DateTime = StartDate.AddDays(NDays)
-                'txtStartDateNDaysCalc.Text = Format(calcDate, "dd MMM yyyy")
                 txtStartDateNDaysCalc.Text = calcDate.ToLongDateString
 
             Case "Date of Start Date - N Days"
                 Dim StartDate As DateTime = DateTime.ParseExact(txtStartDate.Text, "dd MMM yyyy", Nothing)
-                'Dim StartDate As Date = Date.Parse(txtStartDate.Text)
                 Dim NDays As Double = Val(txtNDays.Text)
                 Dim calcDate As DateTime = StartDate.AddDays(-NDays)
-                'txtStartDateNDaysCalc.Text = Format(calcDate, "dd MMM yyyy")
                 txtStartDateNDaysCalc.Text = calcDate.ToLongDateString
-
         End Select
     End Sub
 
@@ -6638,9 +9839,620 @@ Public Class Main
     End Sub
 
 
-
-
 #End Region 'Date Calculations Sub Tab --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Region "Data Views Sub Tab" '=================================================================================================================================================================
+
+#End Region 'Data Views Sub Tab ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Region "Database Tables Sub Tab" '============================================================================================================================================================
+
+    Private Sub cmbUtilTablesDatabase_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbUtilTablesDatabase.SelectedIndexChanged
+        'The selected database has changed.
+        UtilTablesDatabaseChanged()
+
+    End Sub
+
+    Private Sub UtilTablesDatabaseChanged()
+        'The Utilities Database Tables selection has changed.
+        'Update the tab.
+
+        FillCmbSelectTable()
+
+        Select Case cmbUtilTablesDatabase.SelectedItem.ToString
+            Case "Share Prices"
+                txtUtilTablesPath.Text = SharePriceDbPath
+            Case "Financials"
+                txtUtilTablesPath.Text = FinancialsDbPath
+            Case "Calculations"
+                txtUtilTablesPath.Text = CalculationsDbPath
+        End Select
+    End Sub
+
+    Public Sub FillCmbSelectTable()
+        'Fill the cmbSelectTable listbox with the available tables in the selected database.
+
+        Dim DatabasePath As String = ""
+
+        Select Case cmbUtilTablesDatabase.SelectedItem.ToString
+            Case "Share Prices"
+                DatabasePath = SharePriceDbPath
+            Case "Financials"
+                DatabasePath = FinancialsDbPath
+            Case "Calculations"
+                DatabasePath = CalculationsDbPath
+        End Select
+
+        If DatabasePath = "" Then
+
+            Exit Sub
+        End If
+
+        'Database access for MS Access:
+        Dim connectionString As String 'Declare a connection string for MS Access - defines the database or server to be used.
+        Dim conn As System.Data.OleDb.OleDbConnection 'Declare a connection for MS Access - used by the Data Adapter to connect to and disconnect from the database.
+        Dim dt As DataTable
+
+        Dim ds As DataSet = New DataSet
+
+        cmbSelectTable.Text = ""
+        cmbSelectTable.Items.Clear()
+        ds.Clear()
+        ds.Reset()
+
+        'Specify the connection string:
+        'Access 2003
+        'connectionString = "provider=Microsoft.Jet.OLEDB.4.0;" + _
+        '"data source = " + txtDatabase.Text
+
+        'Access 2007:
+        connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
+        "data source = " + DatabasePath
+
+        'Connect to the Access database:
+        conn = New System.Data.OleDb.OleDbConnection(connectionString)
+        conn.Open()
+
+        'This error occurs on the above line (conn.Open()):
+        'Additional information: The 'Microsoft.ACE.OLEDB.12.0' provider is not registered on the local machine.
+        'Fix attempt: 
+        'http://www.microsoft.com/en-us/download/confirmation.aspx?id=23734
+        'Download AccessDatabaseEngine.exe
+        'Run the file to install the 2007 Office System Driver: Data Connectivity Components.
+
+        Dim restrictions As String() = New String() {Nothing, Nothing, Nothing, "TABLE"} 'This restriction removes system tables
+        dt = conn.GetSchema("Tables", restrictions)
+
+        'Fill lstSelectTable
+        Dim dr As DataRow
+        Dim I As Integer 'Loop index
+        Dim MaxI As Integer
+
+        MaxI = dt.Rows.Count
+        For I = 0 To MaxI - 1
+            dr = dt.Rows(0)
+            cmbSelectTable.Items.Add(dt.Rows(I).Item(2).ToString)
+        Next I
+
+        conn.Close()
+
+    End Sub
+
+    Private Sub btnDeleteTable_Click(sender As Object, e As EventArgs) Handles btnDeleteTable.Click
+        'Delete the selected table.
+        DeleteTable()
+    End Sub
+
+    Private Sub DeleteTable()
+        'Dete the specified Database Table.
+
+        Dim DatabasePath As String = ""
+
+        Select Case cmbUtilTablesDatabase.SelectedItem.ToString
+            Case "Share Prices"
+                DatabasePath = SharePriceDbPath
+            Case "Financials"
+                DatabasePath = FinancialsDbPath
+            Case "Calculations"
+                DatabasePath = CalculationsDbPath
+        End Select
+
+        If DatabasePath = "" Then
+            Message.AddWarning("No database selected!" & vbCrLf)
+            Exit Sub
+        End If
+
+        'Database access for MS Access:
+        Dim connectionString As String 'Declare a connection string for MS Access - defines the database or server to be used.
+        Dim conn As System.Data.OleDb.OleDbConnection 'Declare a connection for MS Access - used by the Data Adapter to connect to and disconnect from the database.
+
+        'Access 2007:
+        connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
+        "data source = " + DatabasePath
+
+        'Connect to the Access database:
+        conn = New System.Data.OleDb.OleDbConnection(connectionString)
+        conn.Open()
+
+        Dim myQuery As String = "DROP TABLE [" & cmbSelectTable.SelectedItem.ToString & "]"
+        Message.Add("myQuery: " & myQuery & vbCrLf)
+
+        Dim cmd As New OleDb.OleDbCommand
+        cmd.CommandText = myQuery
+        cmd.Connection = conn
+
+        Try
+            cmd.ExecuteNonQuery()
+        Catch ex As Exception
+            Message.AddWarning("Error creating new table: " & ex.Message & vbCrLf)
+        End Try
+        conn.Close()
+
+        FillCmbSelectTable()
+    End Sub
+
+    Private Sub btnDeleteRecords_Click(sender As Object, e As EventArgs) Handles btnDeleteRecords.Click
+        'Delete all the records from the selected table
+        DeleteRecords()
+    End Sub
+
+    Private Sub DeleteRecords()
+        'Delete all the records in the specified table.
+
+        Dim DatabasePath As String = ""
+
+        Select Case cmbUtilTablesDatabase.SelectedItem.ToString
+            Case "Share Prices"
+                DatabasePath = SharePriceDbPath
+            Case "Financials"
+                DatabasePath = FinancialsDbPath
+            Case "Calculations"
+                DatabasePath = CalculationsDbPath
+        End Select
+
+        If DatabasePath = "" Then
+            Message.AddWarning("No database selected!" & vbCrLf)
+            Exit Sub
+        End If
+
+        'Database access for MS Access:
+        Dim connectionString As String 'Declare a connection string for MS Access - defines the database or server to be used.
+        Dim conn As System.Data.OleDb.OleDbConnection 'Declare a connection for MS Access - used by the Data Adapter to connect to and disconnect from the database.
+
+        'Access 2007:
+        connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
+        "data source = " + DatabasePath
+
+        'Connect to the Access database:
+        conn = New System.Data.OleDb.OleDbConnection(connectionString)
+        conn.Open()
+
+        Dim myQuery As String = "DELETE FROM [" & cmbSelectTable.SelectedItem.ToString & "]"
+        Message.Add("myQuery: " & myQuery & vbCrLf)
+
+        Dim cmd As New OleDb.OleDbCommand
+        cmd.CommandText = myQuery
+        cmd.Connection = conn
+
+        Try
+            cmd.ExecuteNonQuery()
+        Catch ex As Exception
+            Message.AddWarning("Error creating new table: " & ex.Message & vbCrLf)
+        End Try
+        conn.Close()
+    End Sub
+
+    Private Sub btnCopyTableCols_Click(sender As Object, e As EventArgs) Handles btnCopyTableCols.Click
+        'Copy the columns in the selected table into a new table with the specified name.
+        CopyTableColumns()
+    End Sub
+
+
+    Private Sub CopyTableColumns()
+        'Copy the columns (but not the data) in the specified table into a new table.
+
+        Dim NewTableName As String = Trim(txtNewTableName.Text)
+
+        Dim DatabasePath As String = ""
+
+        Select Case cmbUtilTablesDatabase.SelectedItem.ToString
+            Case "Share Prices"
+                DatabasePath = SharePriceDbPath
+            Case "Financials"
+                DatabasePath = FinancialsDbPath
+            Case "Calculations"
+                DatabasePath = CalculationsDbPath
+        End Select
+
+        If DatabasePath = "" Then
+            Message.AddWarning("No database selected!" & vbCrLf)
+            Exit Sub
+        End If
+
+        'Database access for MS Access:
+        Dim connectionString As String 'Declare a connection string for MS Access - defines the database or server to be used.
+        Dim conn As System.Data.OleDb.OleDbConnection 'Declare a connection for MS Access - used by the Data Adapter to connect to and disconnect from the database.
+
+        'Access 2007:
+        connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
+        "data source = " + DatabasePath
+
+        'Connect to the Access database:
+        conn = New System.Data.OleDb.OleDbConnection(connectionString)
+        conn.Open()
+
+        Dim myQuery As String = "SELECT  * INTO [" & txtNewTableName.Text & "] FROM [" & cmbSelectTable.SelectedItem.ToString & "]" & " WHERE 1 = 2"
+        Message.Add("myQuery: " & myQuery & vbCrLf)
+
+        Dim cmd As New OleDb.OleDbCommand
+        cmd.CommandText = myQuery
+        cmd.Connection = conn
+
+        Dim mySchema As DataTable = conn.GetSchema("Indexes", New String() {Nothing, Nothing, Nothing, Nothing, cmbSelectTable.SelectedItem.ToString})
+        'Restrictions: TABLE_CATALOG TABLE_SCHEMA INDEX_NAME TYPE TABLE_NAME
+
+        Try
+            cmd.ExecuteNonQuery()
+
+            'Add the primary key:
+            Dim I As Integer
+            Dim NRows As Integer = mySchema.Rows.Count
+            If NRows = 0 Then
+                Message.AddWarning("No primary keys in the table." & vbCrLf)
+            ElseIf NRows = 1 Then
+                Dim sb As New System.Text.StringBuilder
+                If mySchema.Rows(0).Item("PRIMARY_KEY") = True Then
+                    sb.Append("CREATE INDEX idxPrimaryKey ON " & txtNewTableName.Text & " ([" & mySchema.Rows(0).Item("COLUMN_NAME") & "]) WITH PRIMARY")
+                    Dim pkCommand As New OleDb.OleDbCommand
+                    pkCommand.CommandText = sb.ToString
+                    pkCommand.Connection = conn
+                    Try
+                        pkCommand.ExecuteNonQuery()
+                        Message.Add("Single column primary key added OK." & vbCrLf)
+                    Catch ex As Exception
+                        Message.AddWarning(ex.Message & vbCrLf)
+                    End Try
+                Else
+                    Message.AddWarning("The table index is not a primary key." & vbCrLf)
+                End If
+
+            Else
+                Dim PKColNo As Integer = 0
+                Dim sb As New System.Text.StringBuilder
+                For I = 1 To NRows
+                    If mySchema.Rows(I - 1).Item("PRIMARY_KEY") = True Then
+                        PKColNo = PKColNo + 1
+                        If PKColNo = 1 Then
+                            sb.Append("CREATE INDEX idxPrimaryKey ON " & txtNewTableName.Text & " ([" & mySchema.Rows(I - 1).Item("COLUMN_NAME") & "]")
+                        Else
+                            sb.Append(", [" & mySchema.Rows(I - 1).Item("COLUMN_NAME") & "]")
+                        End If
+                    End If
+                Next
+                If PKColNo = 0 Then
+                    Message.AddWarning("The table indexes do not contain a primary key." & vbCrLf)
+                Else
+                    sb.Append(") WITH PRIMARY")
+                    Dim pkCommand As New OleDb.OleDbCommand
+                    pkCommand.CommandText = sb.ToString
+                    pkCommand.Connection = conn
+                    Try
+                        pkCommand.ExecuteNonQuery()
+                        Message.Add("Multiple column primary key added OK." & vbCrLf)
+                    Catch ex As Exception
+                        Message.AddWarning(ex.Message & vbCrLf)
+                    End Try
+                End If
+            End If
+
+        Catch ex As Exception
+            Message.AddWarning("Error creating New table: " & ex.Message & vbCrLf)
+        End Try
+        conn.Close()
+        FillCmbSelectTable()
+
+    End Sub
+
+    Private Sub CopyTableColumns_Old()
+        'Copy the columns (but not the data) in the specified table into a new table.
+
+        Dim NewTableName As String = Trim(txtNewTableName.Text)
+
+        Dim DatabasePath As String = ""
+
+        Select Case cmbUtilTablesDatabase.SelectedItem.ToString
+            Case "Share Prices"
+                DatabasePath = SharePriceDbPath
+            Case "Financials"
+                DatabasePath = FinancialsDbPath
+            Case "Calculations"
+                DatabasePath = CalculationsDbPath
+        End Select
+
+        If DatabasePath = "" Then
+            Message.AddWarning("No database selected!" & vbCrLf)
+            Exit Sub
+        End If
+
+        'Database access for MS Access:
+        Dim connectionString As String 'Declare a connection string for MS Access - defines the database or server to be used.
+        Dim conn As System.Data.OleDb.OleDbConnection 'Declare a connection for MS Access - used by the Data Adapter to connect to and disconnect from the database.
+
+        'Access 2007:
+        connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
+        "data source = " + DatabasePath
+
+        'Connect to the Access database:
+        conn = New System.Data.OleDb.OleDbConnection(connectionString)
+        conn.Open()
+
+        Dim myQuery As String = "SELECT  * INTO [" & txtNewTableName.Text & "] FROM [" & cmbSelectTable.SelectedItem.ToString & "]" & " WHERE 1 = 2"
+        Message.Add("myQuery: " & myQuery & vbCrLf)
+
+        Dim cmd As New OleDb.OleDbCommand
+        cmd.CommandText = myQuery
+        cmd.Connection = conn
+
+        Try
+            cmd.ExecuteNonQuery()
+        Catch ex As Exception
+            Message.AddWarning("Error creating New table: " & ex.Message & vbCrLf)
+        End Try
+        conn.Close()
+        FillCmbSelectTable()
+
+    End Sub
+
+    Private Sub btnCopyTable_Click(sender As Object, e As EventArgs) Handles btnCopyTable.Click
+        'Copy the selected table (and data) into a new table with the specified name.
+        CopyTable()
+
+    End Sub
+
+    Private Sub CopyTable()
+        'Copy the selected table (and data) into a new table with the specified name.
+
+        Dim NewTableName As String = Trim(txtNewTableName.Text)
+
+        Dim DatabasePath As String = ""
+
+        Select Case cmbUtilTablesDatabase.SelectedItem.ToString
+            Case "Share Prices"
+                DatabasePath = SharePriceDbPath
+            Case "Financials"
+                DatabasePath = FinancialsDbPath
+            Case "Calculations"
+                DatabasePath = CalculationsDbPath
+        End Select
+
+        If DatabasePath = "" Then
+            Message.AddWarning("No database selected!" & vbCrLf)
+            Exit Sub
+        End If
+
+        'Database access for MS Access:
+        Dim connectionString As String 'Declare a connection string for MS Access - defines the database or server to be used.
+        Dim conn As System.Data.OleDb.OleDbConnection 'Declare a connection for MS Access - used by the Data Adapter to connect to and disconnect from the database.
+
+        'Access 2007:
+        connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" +
+        "data source = " + DatabasePath
+
+        'Connect to the Access database:
+        conn = New System.Data.OleDb.OleDbConnection(connectionString)
+        conn.Open()
+
+        Dim myQuery As String = "SELECT * INTO [" & txtNewTableName.Text & "] FROM [" & cmbSelectTable.SelectedItem.ToString & "]"
+        Message.Add("myQuery: " & myQuery & vbCrLf)
+
+        Dim cmd As New OleDb.OleDbCommand
+        cmd.CommandText = myQuery
+        cmd.Connection = conn
+
+        Dim mySchema As DataTable = conn.GetSchema("Indexes", New String() {Nothing, Nothing, Nothing, Nothing, cmbSelectTable.SelectedItem.ToString})
+        'Restrictions: TABLE_CATALOG TABLE_SCHEMA INDEX_NAME TYPE TABLE_NAME
+
+        Try
+            cmd.ExecuteNonQuery()
+
+            'Add the primary key:
+            Dim I As Integer
+            Dim NRows As Integer = mySchema.Rows.Count
+            If NRows = 0 Then
+                Message.AddWarning("No primary keys in the table." & vbCrLf)
+            ElseIf NRows = 1 Then
+                Dim sb As New System.Text.StringBuilder
+                If mySchema.Rows(0).Item("PRIMARY_KEY") = True Then
+                    sb.Append("CREATE INDEX idxPrimaryKey ON " & txtNewTableName.Text & " ([" & mySchema.Rows(0).Item("COLUMN_NAME") & "]) WITH PRIMARY")
+                    Dim pkCommand As New OleDb.OleDbCommand
+                    pkCommand.CommandText = sb.ToString
+                    pkCommand.Connection = conn
+                    Try
+                        pkCommand.ExecuteNonQuery()
+                        Message.Add("Single column primary key added OK." & vbCrLf)
+                    Catch ex As Exception
+                        Message.AddWarning(ex.Message & vbCrLf)
+                    End Try
+                Else
+                    Message.AddWarning("The table index is not a primary key." & vbCrLf)
+                End If
+
+            Else
+                Dim PKColNo As Integer = 0
+                Dim sb As New System.Text.StringBuilder
+                For I = 1 To NRows
+                    If mySchema.Rows(I - 1).Item("PRIMARY_KEY") = True Then
+                        PKColNo = PKColNo + 1
+                        If PKColNo = 1 Then
+                            sb.Append("CREATE INDEX idxPrimaryKey ON " & txtNewTableName.Text & " ([" & mySchema.Rows(I - 1).Item("COLUMN_NAME") & "]")
+                        Else
+                            sb.Append(", [" & mySchema.Rows(I - 1).Item("COLUMN_NAME") & "]")
+                        End If
+                    End If
+                Next
+                If PKColNo = 0 Then
+                    Message.AddWarning("The table indexes do not contain a primary key." & vbCrLf)
+                Else
+                    sb.Append(") WITH PRIMARY")
+                    Dim pkCommand As New OleDb.OleDbCommand
+                    pkCommand.CommandText = sb.ToString
+                    pkCommand.Connection = conn
+                    Try
+                        pkCommand.ExecuteNonQuery()
+                        Message.Add("Multiple column primary key added OK." & vbCrLf)
+                    Catch ex As Exception
+                        Message.AddWarning(ex.Message & vbCrLf)
+                    End Try
+                End If
+            End If
+        Catch ex As Exception
+            Message.AddWarning("Error creating New table: " & ex.Message & vbCrLf)
+        End Try
+        conn.Close()
+        FillCmbSelectTable()
+    End Sub
+
+    Private Sub btnAddDeleteTableToSequence_Click(sender As Object, e As EventArgs) Handles btnAddDeleteTableToSequence.Click
+        'Add the Delete Table sequence to the Processing Sequence.
+
+        If IsNothing(Sequence) Then
+            Message.AddWarning("The Processing Sequence form Is Not open." & vbCrLf)
+        Else
+            'Write new instructions to the Sequence text.
+            Dim Posn As Integer
+            Posn = Sequence.rtbSequence.SelectionStart
+
+            Sequence.rtbSequence.SelectedText = vbCrLf & "<!--Delete Table: Settings used to delete a table from a database :-->" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "  <DeleteTable>" & vbCrLf
+
+            'Input data parameters:
+            Sequence.rtbSequence.SelectedText = "    <Database>" & cmbUtilTablesDatabase.SelectedItem.ToString & "</Database>" & vbCrLf
+            Select Case cmbUtilTablesDatabase.SelectedItem.ToString
+                Case "Share Prices"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & SharePriceDbPath & "</DatabasePath>" & vbCrLf
+                Case "Financials"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & FinancialsDbPath & "</DatabasePath>" & vbCrLf
+                Case "Calculations"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & CalculationsDbPath & "</DatabasePath>" & vbCrLf
+            End Select
+            Sequence.rtbSequence.SelectedText = "    <TableToDelete>" & cmbSelectTable.SelectedItem.ToString & "</TableToDelete>" & vbCrLf
+
+            Sequence.rtbSequence.SelectedText = "    <Command>Apply</Command>" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "  </DeleteTable>" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "<!---->" & vbCrLf
+
+            Sequence.FormatXmlText()
+
+        End If
+
+    End Sub
+
+    Private Sub btnAddDeleteRecordsToSequence_Click(sender As Object, e As EventArgs) Handles btnAddDeleteRecordsToSequence.Click
+        'Add the Delete Records sequence to the Processing Sequence.
+
+        If IsNothing(Sequence) Then
+            Message.AddWarning("The Processing Sequence form is not open." & vbCrLf)
+        Else
+            'Write new instructions to the Sequence text.
+            Dim Posn As Integer
+            Posn = Sequence.rtbSequence.SelectionStart
+
+            Sequence.rtbSequence.SelectedText = vbCrLf & "<!--Delete Records: Settings used to delete the records from a table :-->" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "  <DeleteRecords>" & vbCrLf
+
+            'Input data parameters:
+            Sequence.rtbSequence.SelectedText = "    <Database>" & cmbUtilTablesDatabase.SelectedItem.ToString & "</Database>" & vbCrLf
+            Select Case cmbUtilTablesDatabase.SelectedItem.ToString
+                Case "Share Prices"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & SharePriceDbPath & "</DatabasePath>" & vbCrLf
+                Case "Financials"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & FinancialsDbPath & "</DatabasePath>" & vbCrLf
+                Case "Calculations"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & CalculationsDbPath & "</DatabasePath>" & vbCrLf
+            End Select
+            Sequence.rtbSequence.SelectedText = "    <Table>" & cmbSelectTable.SelectedItem.ToString & "</Table>" & vbCrLf
+
+            Sequence.rtbSequence.SelectedText = "    <Command>Apply</Command>" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "  </DeleteRecords>" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "<!---->" & vbCrLf
+
+            Sequence.FormatXmlText()
+        End If
+
+    End Sub
+
+    Private Sub btnAddCopyColsToSequence_Click(sender As Object, e As EventArgs) Handles btnAddCopyColsToSequence.Click
+        'Add the Copy Table Columns sequence to the Processing Sequence.
+
+        If IsNothing(Sequence) Then
+            Message.AddWarning("The Processing Sequence form is not open." & vbCrLf)
+        Else
+            'Write new instructions to the Sequence text.
+            Dim Posn As Integer
+            Posn = Sequence.rtbSequence.SelectionStart
+
+            Sequence.rtbSequence.SelectedText = vbCrLf & "<!--Copy Table Columns: Settings used to copy the columns in a table to a new table :-->" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "  <CopyTableColumns>" & vbCrLf
+
+            'Input data parameters:
+            Sequence.rtbSequence.SelectedText = "    <Database>" & cmbUtilTablesDatabase.SelectedItem.ToString & "</Database>" & vbCrLf
+            Select Case cmbUtilTablesDatabase.SelectedItem.ToString
+                Case "Share Prices"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & SharePriceDbPath & "</DatabasePath>" & vbCrLf
+                Case "Financials"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & FinancialsDbPath & "</DatabasePath>" & vbCrLf
+                Case "Calculations"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & CalculationsDbPath & "</DatabasePath>" & vbCrLf
+            End Select
+            Sequence.rtbSequence.SelectedText = "    <Table>" & cmbSelectTable.SelectedItem.ToString & "</Table>" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "    <NewTable>" & txtNewTableName.Text & "</NewTable>" & vbCrLf
+
+            Sequence.rtbSequence.SelectedText = "    <Command>Apply</Command>" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "  </CopyTableColumns>" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "<!---->" & vbCrLf
+
+            Sequence.FormatXmlText()
+        End If
+
+    End Sub
+
+    Private Sub btnAddCopyTableToSequence_Click(sender As Object, e As EventArgs) Handles btnAddCopyTableToSequence.Click
+        'Add the Copy Table sequence to the Processing Sequence.
+
+        If IsNothing(Sequence) Then
+            Message.AddWarning("The Processing Sequence form is not open." & vbCrLf)
+        Else
+            'Write new instructions to the Sequence text.
+            Dim Posn As Integer
+            Posn = Sequence.rtbSequence.SelectionStart
+
+            Sequence.rtbSequence.SelectedText = vbCrLf & "<!--Copy Table: Settings used to copy the columns and data in a table to a new table :-->" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "  <CopyTable>" & vbCrLf
+
+            'Input data parameters:
+            Sequence.rtbSequence.SelectedText = "    <Database>" & cmbUtilTablesDatabase.SelectedItem.ToString & "</Database>" & vbCrLf
+            Select Case cmbUtilTablesDatabase.SelectedItem.ToString
+                Case "Share Prices"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & SharePriceDbPath & "</DatabasePath>" & vbCrLf
+                Case "Financials"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & FinancialsDbPath & "</DatabasePath>" & vbCrLf
+                Case "Calculations"
+                    Sequence.rtbSequence.SelectedText = "    <DatabasePath>" & CalculationsDbPath & "</DatabasePath>" & vbCrLf
+            End Select
+            Sequence.rtbSequence.SelectedText = "    <Table>" & cmbSelectTable.SelectedItem.ToString & "</Table>" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "    <NewTable>" & txtNewTableName.Text & "</NewTable>" & vbCrLf
+
+            Sequence.rtbSequence.SelectedText = "    <Command>Apply</Command>" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "  </CopyTable>" & vbCrLf
+            Sequence.rtbSequence.SelectedText = "<!---->" & vbCrLf
+
+            Sequence.FormatXmlText()
+        End If
+
+    End Sub
+
+
+#End Region 'Database Tables Sub Tab ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 #End Region 'Utilities Tab --------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -6655,6 +10467,7 @@ Public Class Main
         'Execute each instruction that is produced by running the XSequence file.
 
         Select Case Locn
+
             'Parameter Code: -----------------------------------------------------------------------------------------------------------------------------
             Case "Parameter:Name"
                 XSeq.NewParameter.Name = Info
@@ -6759,7 +10572,6 @@ Public Class Main
             Case "SelectData:Command"
                 Select Case Info
                     Case "Apply"
-                        'ApplyDateSelections()
                         ApplySelectData()
                     Case Else
                         Message.AddWarning("Unknown SelectData:Command Information Value: " & Info & vbCrLf)
@@ -6825,9 +10637,6 @@ Public Class Main
                     Case Else
                         Message.AddWarning("Unknown SimpleCalculations:Command Information Value: " & Info & vbCrLf)
                 End Select
-
-
-
 
 
             'Date Calculations Code: ---------------------------------------------------------------------------------------------------------------------
@@ -6931,11 +10740,111 @@ Public Class Main
                         Message.AddWarning("Unknown DateSelect:Command Information Value: " & Info & vbCrLf)
                 End Select
 
+            'Utilities - Database Tables Code: -----------------------------------------------------------------------------------------------------------
+            Case "DeleteTable:Database"
+                cmbUtilTablesDatabase.SelectedIndex = cmbUtilTablesDatabase.FindStringExact(Info)
+            Case "DeleteTable:DatabasePath"
+                 'Not used. Database path determined from Database selection.
+            Case "DeleteTable:TableToDelete"
+                cmbSelectTable.SelectedIndex = cmbSelectTable.FindStringExact(Info)
+            Case "DeleteTable:TableToDelete:ReadParameter"
+                If XSeq.Parameter.ContainsKey(Info) Then
+                    cmbSelectTable.SelectedIndex = cmbSelectTable.FindStringExact(XSeq.Parameter(Info).Value)
+                Else
+                    Message.AddWarning("Instruction error - DeleteTable:TableToDelete:ReadParameter - The following parameter was not found: " & Info & vbCrLf)
+                End If
+            Case "DeleteTable:Command"
+                Select Case Info
+                    Case "Apply"
+                        DeleteTable()
+                    Case Else
+                        Message.AddWarning("Unknown DeleteTable:Command Information Value: " & Info & vbCrLf)
+                End Select
+
+            Case "DeleteRecords:Database"
+                cmbUtilTablesDatabase.SelectedIndex = cmbUtilTablesDatabase.FindStringExact(Info)
+            Case "DeleteRecords:DatabasePath"
+                 'Not used. Database path determined from Database selection.
+            Case "DeleteRecords:Table"
+                cmbSelectTable.SelectedIndex = cmbSelectTable.FindStringExact(Info)
+            Case "DeleteRecords:Table:ReadParameter"
+                If XSeq.Parameter.ContainsKey(Info) Then
+                    cmbSelectTable.SelectedIndex = cmbSelectTable.FindStringExact(XSeq.Parameter(Info).Value)
+                Else
+                    Message.AddWarning("Instruction error - DeleteRecords:Table:ReadParameter - The following parameter was not found: " & Info & vbCrLf)
+                End If
+
+            Case "DeleteRecords:Command"
+                Select Case Info
+                    Case "Apply"
+                        DeleteRecords()
+                    Case Else
+                        Message.AddWarning("Unknown DeleteRecords:Command Information Value: " & Info & vbCrLf)
+                End Select
+
+            Case "CopyTableColumns:Database"
+                cmbUtilTablesDatabase.SelectedIndex = cmbUtilTablesDatabase.FindStringExact(Info)
+            Case "CopyTableColumns:DatabasePath"
+                'Not used. Database path determined from Database selection.
+            Case "CopyTableColumns:Table"
+                cmbSelectTable.SelectedIndex = cmbSelectTable.FindStringExact(Info)
+            Case "CopyTableColumns:Table:ReadParameter"
+                If XSeq.Parameter.ContainsKey(Info) Then
+                    cmbSelectTable.SelectedIndex = cmbSelectTable.FindStringExact(XSeq.Parameter(Info).Value)
+                Else
+                    Message.AddWarning("Instruction error - CopyTableColumns:Table:ReadParameter - The following parameter was not found: " & Info & vbCrLf)
+                End If
+
+            Case "CopyTableColumns:NewTable"
+                txtNewTableName.Text = Info
+            Case "CopyTableColumns:NewTable:ReadParameter"
+                If XSeq.Parameter.ContainsKey(Info) Then
+                    txtNewTableName.Text = XSeq.Parameter(Info).Value
+                Else
+                    Message.AddWarning("Instruction error - CopyTableColumns:Table:ReadParameter - The following parameter was not found: " & Info & vbCrLf)
+                End If
+
+            Case "CopyTableColumns:Command"
+                Select Case Info
+                    Case "Apply"
+                        CopyTableColumns()
+                    Case Else
+                        Message.AddWarning("Unknown CopyTableColumns:Command Information Value: " & Info & vbCrLf)
+                End Select
+
+            Case "CopyTable:Database"
+                cmbUtilTablesDatabase.SelectedIndex = cmbUtilTablesDatabase.FindStringExact(Info)
+            Case "CopyTable:DatabasePath"
+                 'Not used. Database path determined from Database selection.
+            Case "CopyTable:Table"
+                cmbSelectTable.SelectedIndex = cmbSelectTable.FindStringExact(Info)
+            Case "CopyTable:Table:ReadParameter"
+                If XSeq.Parameter.ContainsKey(Info) Then
+                    cmbSelectTable.SelectedIndex = cmbSelectTable.FindStringExact(XSeq.Parameter(Info).Value)
+                Else
+                    Message.AddWarning("Instruction error - CopyTable:Table:ReadParameter - The following parameter was not found: " & Info & vbCrLf)
+                End If
+
+            Case "CopyTable:NewTable"
+                txtNewTableName.Text = Info
+            Case "CopyTable:NewTable:ReadParameter"
+                If XSeq.Parameter.ContainsKey(Info) Then
+                    txtNewTableName.Text = XSeq.Parameter(Info).Value
+                Else
+                    Message.AddWarning("Instruction error - CopyTable:NewTable:ReadParameter - The following parameter was not found: " & Info & vbCrLf)
+                End If
+
+            Case "CopyTable:Command"
+                Select Case Info
+                    Case "Apply"
+                        CopyTable()
+                    Case Else
+                        Message.AddWarning("Unknown CopyTable:Command Information Value: " & Info & vbCrLf)
+                End Select
 
 
             'End of Sequence Code: -----------------------------------------------------------------------------------------------------------------------
             Case "EndOfSequence"
-                'ApplyCopyData()
                 XSeq.Parameter.Clear() 'Clear the Parameter dictionary.
                 Message.Add("Processing sequence has completed." & vbCrLf)
 
@@ -6943,15 +10852,98 @@ Public Class Main
                 Message.AddWarning("Unknown Information Location: " & Locn & vbCrLf)
         End Select
 
-
     End Sub
-
 
 
 
 
 #End Region 'Run XSequence Code ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+    Private Sub ApplicationInfo_UpdateExePath() Handles ApplicationInfo.UpdateExePath
+        'Update the Executable Path.
+        ApplicationInfo.ExecutablePath = Application.ExecutablePath
+    End Sub
+
+    Private Sub Zip_FileSelected(FileName As String) Handles Zip.FileSelected
+
+    End Sub
+
+    Private Sub XMsgLocal_Instruction(Info As String, Locn As String) Handles XMsgLocal.Instruction
+        'Process an XMessage instruction locally.
+
+        If IsDBNull(Info) Then
+            Info = ""
+        End If
+
+        'Intercept and instructions with the prefix "WebPage_"
+        If Locn.StartsWith("WebPage_") Then 'Send the Info, Location data to the correct Web Page:
+            Dim EndOfWebPageNoString As Integer = Locn.IndexOf(":")
+            Dim PageNoLen As Integer = EndOfWebPageNoString - 8
+            Dim WebPageNoString As String = Locn.Substring(8, PageNoLen)
+            Dim WebPageNo As Integer = CInt(WebPageNoString)
+            Dim WebPageInfo As String = Info
+            Dim WebPageLocn As String = Locn.Substring(EndOfWebPageNoString + 1)
+
+            WebPageFormList(WebPageNo).XMsgInstruction(WebPageInfo, WebPageLocn)
+
+        Else
+
+            Select Case Locn
+                Case "ClientName"
+                    ClientAppName = Info 'The name of the Client requesting service.
+
+                Case "Main"
+                 'Blank message - do nothing.
+
+                Case "Main:Status"
+                    Select Case Info
+                        Case "OK"
+                            'Main instructions completed OK
+                    End Select
+
+                Case "EndOfSequence"
+                    'End of Information Vector Sequence reached.
+
+                Case Else
+                    Message.AddWarning("Unknown location: " & Locn & vbCrLf)
+                    Message.AddWarning("            info: " & Info & vbCrLf)
+            End Select
+        End If
+    End Sub
+
+
+    Private Sub chkConnect_LostFocus(sender As Object, e As EventArgs) Handles chkConnect.LostFocus
+        If chkConnect.Checked Then
+            Project.ConnectOnOpen = True
+        Else
+            Project.ConnectOnOpen = False
+        End If
+        Project.SaveProjectInfoFile()
+
+    End Sub
+
+    Private Sub Timer3_Tick(sender As Object, e As EventArgs) Handles Timer3.Tick
+        'Keet the connection awake with each tick:
+
+        If ConnectedToComNet = True Then
+            Try
+                If client.IsAlive() Then
+                    Message.Add(Format(Now, "HH:mm:ss") & " Connection OK." & vbCrLf)
+                    Timer3.Interval = TimeSpan.FromMinutes(55).TotalMilliseconds '55 minute interval
+                Else
+                    Message.Add(Format(Now, "HH:mm:ss") & " Connection Fault." & vbCrLf)
+                    Timer3.Interval = TimeSpan.FromMinutes(55).TotalMilliseconds '55 minute interval
+                End If
+            Catch ex As Exception
+                Message.AddWarning(ex.Message & vbCrLf)
+                'Set interval to five minutes - try again in five minutes:
+                Timer3.Interval = TimeSpan.FromMinutes(5).TotalMilliseconds '5 minute interval
+            End Try
+        Else
+            Message.Add(Format(Now, "HH:mm:ss") & " Not connected." & vbCrLf)
+        End If
+
+    End Sub
 
 #End Region 'Form Methods ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -7055,18 +11047,7 @@ Public Class Main
 
     End Class
 
-
-
-
-
-
-
-
-
-
 #End Region 'Classes --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
 
 End Class
 

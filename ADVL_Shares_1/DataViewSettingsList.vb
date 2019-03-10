@@ -233,6 +233,46 @@
         End If
     End Sub
 
+    'Move the Settings entry at the specified index up by one position.
+    Public Sub MoveItemUp(ByVal Index As Integer)
+        If Index < 0 Then
+            'Invalid index number.
+            RaiseEvent ErrorMessage("Invalid index number: " & Index & vbCrLf)
+        ElseIf Index = 0 Then
+            'Settings are already in the first index position. They cannot be moved up.
+            RaiseEvent Message("Settings are already in the first index position. They cannot be moved up." & vbCrLf)
+        Else
+            If Index + 1 > List.Count Then
+                RaiseEvent ErrorMessage("Index position is too large." & vbCrLf)
+            Else
+                'OK to move the Settings up one position.
+                Dim SavedSettings As New DataViewSettings
+                SavedSettings = List(Index - 1)
+                List(Index - 1) = List(Index)
+                List(Index) = SavedSettings
+            End If
+        End If
+    End Sub
+
+    'Move the Settings entry at the specified position down by one position.
+    Public Sub MoveItemDown(ByVal Index As Integer)
+        If Index < 0 Then
+            'Invalid index number.
+            RaiseEvent ErrorMessage("Invalid index number: " & Index & vbCrLf)
+        ElseIf Index + 1 > List.Count Then
+            RaiseEvent ErrorMessage("Index position is too large." & vbCrLf)
+        ElseIf Index + 1 = List.Count Then
+            'Settings are already in the last index position. They cannot be moved down.
+            RaiseEvent Message("Settings are already in the last index position. They cannot be moved down." & vbCrLf)
+        Else
+            'OK to move the Settings up one position.
+            Dim SavedSettings As New DataViewSettings
+            SavedSettings = List(Index + 1)
+            List(Index + 1) = List(Index)
+            List(Index) = SavedSettings
+        End If
+    End Sub
+
 #End Region 'Methods -----------------------------------------------------------------------------------------------------
 
 #Region "Events" '========================================================================================================

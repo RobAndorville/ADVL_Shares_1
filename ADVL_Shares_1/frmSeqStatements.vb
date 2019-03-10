@@ -205,6 +205,7 @@
 
     Private Sub btnCommandLine_Click(sender As Object, e As EventArgs) Handles btnCommandLine.Click
         'Add a Command line to the processing sequence:
+
         'Command lines include:
         '<ExitLoopIf>No_more_input_files</ExitLoopIf>
         '<ExitLoopIf>At_end_of_file</ExitLoopIf>

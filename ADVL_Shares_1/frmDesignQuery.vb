@@ -6,35 +6,6 @@
 
 #Region " Properties - All the properties used in this form and this application" '------------------------------------------------------------------------------------------------------------
 
-    'Private _databaseSelected As String = "" 'The type of database selected: Prices, Financials, News or Other
-    'Property DatabaseSelected As String
-    '    Get
-    '        Return _databaseSelected
-    '    End Get
-    '    Set(value As String)
-    '        _databaseSelected = value
-    '        Select Case value
-    '            Case "Prices"
-    '                rbSharePrices_old.Checked = True
-    '                DatabasePath = Main.SharePriceDbPath
-    '            Case "Financials"
-    '                rbFinancials_old.Checked = True
-    '                DatabasePath = Main.FinancialsDbPath
-    '            Case "News"
-    '                rbNews_old.Checked = True
-    '                DatabasePath = Main.NewsDbPath
-    '            Case "Other"
-    '                rbOther_old.Checked = True
-    '                DatabasePath = ""
-    '            Case Else
-    '                rbOther_old.Checked = True
-    '                DatabasePath = ""
-    '        End Select
-    '        lstSelectFields.Items.Clear()
-    '        FillLstTables()
-    '    End Set
-    'End Property
-
     Private _databasePath As String = "" 'The path of the database.
     Property DatabasePath As String
         Get
@@ -42,8 +13,6 @@
         End Get
         Set(value As String)
             _databasePath = value
-            'txtSharePriceDatabase.Text = _databasePath
-            'txtDatabasePath_old.Text = _databasePath
             lstSelectFields.Items.Clear()
             FillLstTables()
         End Set
@@ -75,8 +44,6 @@
                                <!---->
                            </FormSettings>
 
-        ' <DatabaseSelected><%= DatabaseSelected %></DatabaseSelected>
-
         'Add code to include other settings to save after the comment line <!---->
 
         Dim SettingsFileName As String = "FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & ".xml"
@@ -103,7 +70,6 @@
             If Settings.<FormSettings>.<Width>.Value <> Nothing Then Me.Width = Settings.<FormSettings>.<Width>.Value
 
             'Add code to read other saved setting here:
-            'If Settings.<FormSettings>.<DatabaseSelected>.Value <> Nothing Then DatabaseSelected = Settings.<FormSettings>.<DatabaseSelected>.Value
 
         End If
     End Sub
@@ -168,7 +134,6 @@
         DateTimePicker5.Enabled = False
         DateTimePicker6.Enabled = False
 
-
     End Sub
 
     Private Sub btnExit_Click(sender As Object, e As EventArgs) Handles btnExit.Click
@@ -212,8 +177,6 @@
         '"data source = " + txtDatabase.Text
 
         'Access 2007:
-        'connectionString = "provider=Microsoft.ACE.OLEDB.12.0; data source = " + Main.InputDatabasePath
-        'connectionString = "provider=Microsoft.ACE.OLEDB.12.0; data source = " + Main.SharePriceDbPath
         connectionString = "provider=Microsoft.ACE.OLEDB.12.0; data source = " + DatabasePath
 
         'Connect to the Access database:
@@ -263,21 +226,17 @@
 
         Else 'A table has been selected. List its fields:
             lstSelectFields.Items.Clear()
-            'lstWhereFields.Items.Clear()
             cmbField1.Items.Clear()
             cmbField2.Items.Clear()
 
             'Specify the connection string (Access 2007):
             connectionString = "provider=Microsoft.ACE.OLEDB.12.0;" + "data source = " + DatabasePath
-            '"data source = " + Main.SharePriceDbPath
-            '   "data source = " + Main.InputDatabasePath
 
             'Connect to the Access database:
             conn = New System.Data.OleDb.OleDbConnection(connectionString)
             conn.Open()
 
             'Specify the commandString to query the database:
-            'commandString = "SELECT * FROM " + lstTables.SelectedItem.ToString
             commandString = "SELECT TOP 500 * FROM " + lstTables.SelectedItem.ToString
             Dim dataAdapter As New System.Data.OleDb.OleDbDataAdapter(commandString, conn)
             ds = New DataSet
@@ -289,7 +248,6 @@
             Dim I As Integer
             For I = 0 To NFields - 1
                 lstSelectFields.Items.Add(dt.Columns(I).ColumnName.ToString)
-                'lstWhereFields.Items.Add(dt.Columns(I).ColumnName.ToString)
                 cmbField1.Items.Add(dt.Columns(I).ColumnName.ToString)
                 cmbField2.Items.Add(dt.Columns(I).ColumnName.ToString)
             Next
@@ -336,15 +294,11 @@
 
         'Make the SELECT part of the statement: ----------------------------------------------------------------------
         If lstTables.SelectedItems.Count = 0 Then
-            'Main.MessageStyleWarningSet()
-            'Main.MessageAdd("No table has been selected" & vbCrLf)
             Main.Message.AddWarning("No table has been selected" & vbCrLf)
             Exit Sub
         End If
 
         If lstSelectFields.SelectedItems.Count = 0 Then 'No fields have been selected
-            'Main.MessageStyleWarningSet()
-            'Main.MessageAdd("No fields have been selected" & vbCrLf)
             Main.Message.AddWarning("No fields have been selected" & vbCrLf)
             Exit Sub
         End If
@@ -363,8 +317,6 @@
 
         'Add the first constraint to the statement: -------------------------------------------------------------------
         If cmbConstraint1.SelectedItem.ToString = "" Then
-            'Main.MessageStyleNormalSet()
-            'Main.MessageAdd("No constraints specified" & vbCrLf)
             Main.Message.AddWarning("No constraints specified" & vbCrLf)
             Exit Sub
         Else
@@ -484,56 +436,12 @@
         txtSecondValue2.Text = "#" & Format(DateTimePicker6.Value, "MM-dd-yyyy") & "#"
     End Sub
 
-    'Private Sub rbSharePrices_CheckedChanged(sender As Object, e As EventArgs) Handles rbSharePrices_old.CheckedChanged
-    '    If rbSharePrices_old.Checked Then
-    '        _databaseSelected = "Prices"
-    '        DatabasePath = Main.SharePriceDbPath
-    '        lstSelectFields.Items.Clear()
-    '        FillLstTables()
-    '    End If
-    'End Sub
-
-    'Private Sub rbFinancials_CheckedChanged(sender As Object, e As EventArgs) Handles rbFinancials_old.CheckedChanged
-    '    If rbFinancials_old.Checked Then
-    '        _databaseSelected = "Financials"
-    '        DatabasePath = Main.FinancialsDbPath
-    '        lstSelectFields.Items.Clear()
-    '        FillLstTables()
-    '    End If
-    'End Sub
-
-    'Private Sub rbNews_CheckedChanged(sender As Object, e As EventArgs) Handles rbNews_old.CheckedChanged
-    '    If rbNews_old.Checked Then
-    '        _databaseSelected = "News"
-    '        DatabasePath = Main.NewsDbPath
-    '        lstSelectFields.Items.Clear()
-    '        FillLstTables()
-    '    End If
-    'End Sub
-
-    'Private Sub rbOther_CheckedChanged(sender As Object, e As EventArgs) Handles rbOther_old.CheckedChanged
-    '    If rbOther_old.Checked Then
-    '        _databaseSelected = "Other"
-    '        DatabasePath = Main.OtherDbPath
-    '        lstSelectFields.Items.Clear()
-    '        FillLstTables()
-    '    End If
-    'End Sub
-
-    'Private Sub btnFindOtherDb_Click(sender As Object, e As EventArgs) Handles btnFindOtherDb_old.Click
-
-    'End Sub
-
 #End Region 'Form Methods ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #Region " Form Events - Events that can be triggered by this form." '--------------------------------------------------------------------------------------------------------------------------
 
     Event Apply(ByVal myQuery As String) 'Send the Query
 
-
-
 #End Region 'Form Events ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
 
 End Class

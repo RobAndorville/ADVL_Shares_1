@@ -22,6 +22,7 @@ Partial Class frmSequence
     'Do not modify it using the code editor.
     <System.Diagnostics.DebuggerStepThrough()> _
     Private Sub InitializeComponent()
+        Me.components = New System.ComponentModel.Container()
         Me.chkRecordSteps = New System.Windows.Forms.CheckBox()
         Me.rtbSequence = New System.Windows.Forms.RichTextBox()
         Me.Label2 = New System.Windows.Forms.Label()
@@ -35,6 +36,7 @@ Partial Class frmSequence
         Me.btnOpen = New System.Windows.Forms.Button()
         Me.btnNew = New System.Windows.Forms.Button()
         Me.btnExit = New System.Windows.Forms.Button()
+        Me.XmlDisplay = New ADVL_Utilities_Library_1.XmlDisplay(Me.components)
         Me.SuspendLayout()
         '
         'chkRecordSteps
@@ -49,12 +51,11 @@ Partial Class frmSequence
         '
         'rtbSequence
         '
-        Me.rtbSequence.Anchor = CType((((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Bottom) _
-            Or System.Windows.Forms.AnchorStyles.Left) _
-            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.rtbSequence.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Bottom) _
+            Or System.Windows.Forms.AnchorStyles.Left), System.Windows.Forms.AnchorStyles)
         Me.rtbSequence.Location = New System.Drawing.Point(12, 148)
         Me.rtbSequence.Name = "rtbSequence"
-        Me.rtbSequence.Size = New System.Drawing.Size(738, 392)
+        Me.rtbSequence.Size = New System.Drawing.Size(341, 392)
         Me.rtbSequence.TabIndex = 67
         Me.rtbSequence.Text = ""
         '
@@ -159,11 +160,23 @@ Partial Class frmSequence
         Me.btnExit.Text = "Exit"
         Me.btnExit.UseVisualStyleBackColor = True
         '
+        'XmlDisplay
+        '
+        Me.XmlDisplay.Anchor = CType((((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Bottom) _
+            Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.XmlDisplay.Location = New System.Drawing.Point(359, 148)
+        Me.XmlDisplay.Name = "XmlDisplay"
+        Me.XmlDisplay.Size = New System.Drawing.Size(391, 392)
+        Me.XmlDisplay.TabIndex = 69
+        Me.XmlDisplay.Text = ""
+        '
         'frmSequence
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
         Me.ClientSize = New System.Drawing.Size(762, 552)
+        Me.Controls.Add(Me.XmlDisplay)
         Me.Controls.Add(Me.chkRecordSteps)
         Me.Controls.Add(Me.rtbSequence)
         Me.Controls.Add(Me.Label2)
@@ -197,4 +210,5 @@ Partial Class frmSequence
     Friend WithEvents btnOpen As Button
     Friend WithEvents btnNew As Button
     Friend WithEvents btnExit As Button
+    Friend WithEvents XmlDisplay As ADVL_Utilities_Library_1.XmlDisplay
 End Class

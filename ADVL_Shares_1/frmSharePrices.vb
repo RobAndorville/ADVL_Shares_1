@@ -16,6 +16,8 @@
 
     Public WithEvents DesignShareQuery As frmDesignQuery
 
+    Dim StockChartSettingsList As New XDocument 'Stock chart settings list.
+
 #End Region 'Variable Declarations ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #Region " Properties - All the properties used in this form and this application" '============================================================================================================
@@ -47,16 +49,28 @@
         End Set
     End Property
 
-    Private _dataSummary As String = ""
-    Public Property DataSummary As String
+    'Private _dataSummary As String = ""
+    'Public Property DataSummary As String
+    '    Get
+    '        Return _dataSummary
+    '    End Get
+    '    Set(value As String)
+    '        _dataSummary = value
+    '        txtSharePriceDataDescr.Text = _dataSummary
+    '    End Set
+    'End Property
+
+    Private _dataName As String = ""
+    Public Property DataName As String
         Get
-            Return _dataSummary
+            Return _dataName
         End Get
         Set(value As String)
-            _dataSummary = value
-            txtSharePriceDataDescr.Text = _dataSummary
+            _dataName = value
+            txtDataName.Text = _dataName
         End Set
     End Property
+
 
     Private _version As String = ""
     Public Property Version As String
@@ -85,13 +99,14 @@
             Main.SharePricesSettings.List(FormNo).Width = Me.Width
             Main.SharePricesSettings.List(FormNo).Height = Me.Height
             Main.SharePricesSettings.List(FormNo).Query = Query
-            Main.SharePricesSettings.List(FormNo).Description = txtSharePriceDataDescr.Text
+            Main.SharePricesSettings.List(FormNo).Description = txtDataName.Text
             Main.SharePricesSettings.List(FormNo).VersionName = txtVersionName.Text
             Main.SharePricesSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
             Main.SharePricesSettings.List(FormNo).AutoApplyQuery = chkAutoApply.Checked.ToString
             Main.SharePricesSettings.List(FormNo).SelectedTab = TabControl1.SelectedIndex
             Main.SharePricesSettings.List(FormNo).SaveFileDir = Trim(txtDirectory.Text)
             Main.SharePricesSettings.List(FormNo).XmlFileName = Trim(txtXmlFileName.Text)
+            Main.SharePricesSettings.List(FormNo).ChartSettingsFile = Trim(txtStockChartSettings.Text)
         End If
     End Sub
 
@@ -110,7 +125,7 @@
             Me.Width = Main.SharePricesSettings.List(FormNo).Width
             Me.Height = Main.SharePricesSettings.List(FormNo).Height
             Query = Main.SharePricesSettings.List(FormNo).Query
-            txtSharePriceDataDescr.Text = Main.SharePricesSettings.List(FormNo).Description
+            txtDataName.Text = Main.SharePricesSettings.List(FormNo).Description
             txtVersionName.Text = Main.SharePricesSettings.List(FormNo).VersionName
             txtDataVersion.Text = Main.SharePricesSettings.List(FormNo).VersionName
             txtVersionDesc.Text = Main.SharePricesSettings.List(FormNo).VersionDesc
@@ -118,6 +133,44 @@
             TabControl1.SelectedIndex = Main.SharePricesSettings.List(FormNo).SelectedTab
             txtDirectory.Text = Main.SharePricesSettings.List(FormNo).SaveFileDir
             txtXmlFileName.Text = Main.SharePricesSettings.List(FormNo).XmlFileName
+            txtStockChartSettings.Text = Main.SharePricesSettings.List(FormNo).ChartSettingsFile
+            If txtStockChartSettings.Text.Trim <> "" Then
+                Main.Project.ReadXmlData(txtStockChartSettings.Text, StockChartSettingsList)
+            End If
+            CheckFormPos()
+        End If
+    End Sub
+
+    Private Sub CheckFormPos()
+        'Check that the form can be seen on a screen.
+
+        Dim MinWidthVisible As Integer = 192 'Minimum number of X pixels visible. The form will be moved if this many form pixels are not visible.
+        Dim MinHeightVisible As Integer = 64 'Minimum number of Y pixels visible. The form will be moved if this many form pixels are not visible.
+
+        Dim FormRect As New Rectangle(Me.Left, Me.Top, Me.Width, Me.Height)
+        Dim WARect As Rectangle = Screen.GetWorkingArea(FormRect) 'The Working Area rectangle - the usable area of the screen containing the form.
+
+        ''Check if the top of the form is less than zero:
+        'If Me.Top < 0 Then Me.Top = 0
+
+        'Check if the top of the form is above the top of the Working Area:
+        If Me.Top < WARect.Top Then
+            Me.Top = WARect.Top
+        End If
+
+        'Check if the top of the form is too close to the bottom of the Working Area:
+        If (Me.Top + MinHeightVisible) > (WARect.Top + WARect.Height) Then
+            Me.Top = WARect.Top + WARect.Height - MinHeightVisible
+        End If
+
+        'Check if the left edge of the form is too close to the right edge of the Working Area:
+        If (Me.Left + MinWidthVisible) > (WARect.Left + WARect.Width) Then
+            Me.Left = WARect.Left + WARect.Width - MinWidthVisible
+        End If
+
+        'Check if the right edge of the form is too close to the left edge of the Working Area:
+        If (Me.Left + Me.Width - MinWidthVisible) < WARect.Left Then
+            Me.Left = WARect.Left - Me.Width + MinWidthVisible
         End If
     End Sub
 
@@ -308,19 +361,25 @@
             Main.Message.Add(ex.Message & vbCrLf & vbCrLf)
         End Try
 
-        txtNRecords.Text = ds.Tables(0).Rows.Count
-        If DataGridView1.SelectedCells.Count > 0 Then
-            txtSelectedRecord.Text = DataGridView1.SelectedCells.Item(0).RowIndex
+        If ds.Tables.Count = 0 Then
+            Main.Message.Add("Query error: table not found." & vbCrLf)
         Else
-            txtSelectedRecord.Text = ""
+            txtNRecords.Text = ds.Tables(0).Rows.Count
+
+            If DataGridView1.SelectedCells.Count > 0 Then
+                txtSelectedRecord.Text = DataGridView1.SelectedCells.Item(0).RowIndex
+            Else
+                txtSelectedRecord.Text = ""
+            End If
         End If
 
         myConnection.Close()
     End Sub
 
-    Private Sub txtSharePriceDataDescr_LostFocus(sender As Object, e As EventArgs) Handles txtSharePriceDataDescr.LostFocus
+    Private Sub txtSharePriceDataDescr_LostFocus(sender As Object, e As EventArgs) Handles txtDataName.LostFocus
         'Update the description of the data shown on this Share Prices form:
-        Main.UpdateSharePricesDataDescr(FormNo, txtSharePriceDataDescr.Text)
+        'Main.UpdateSharePricesDataDescr(FormNo, txtDataName.Text)
+        Main.UpdateSharePricesDataName(FormNo, txtDataName.Text)
     End Sub
 
     Private Sub DataGridView1_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellClick
@@ -465,7 +524,7 @@
         Main.SharePricesSettings.List(FormNo).Width = Me.Width
         Main.SharePricesSettings.List(FormNo).Height = Me.Height
         Main.SharePricesSettings.List(FormNo).Query = Query
-        Main.SharePricesSettings.List(FormNo).Description = txtSharePriceDataDescr.Text
+        Main.SharePricesSettings.List(FormNo).Description = txtDataName.Text
         Main.SharePricesSettings.List(FormNo).VersionName = txtVersionName.Text
         Main.SharePricesSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
         Main.SharePricesSettings.List(FormNo).AutoApplyQuery = chkAutoApply.Checked.ToString
@@ -548,7 +607,7 @@
         Main.SharePricesSettings.List(FormNo).Width = Me.Width
         Main.SharePricesSettings.List(FormNo).Height = Me.Height
         Main.SharePricesSettings.List(FormNo).Query = Query
-        Main.SharePricesSettings.List(FormNo).Description = txtSharePriceDataDescr.Text
+        Main.SharePricesSettings.List(FormNo).Description = txtDataName.Text
         Main.SharePricesSettings.List(FormNo).VersionName = txtVersionName.Text
         Main.SharePricesSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
         Main.SharePricesSettings.List(FormNo).AutoApplyQuery = chkAutoApply.Checked.ToString
@@ -758,6 +817,126 @@
 
     Private Sub txtXmlFileName_TextChanged(sender As Object, e As EventArgs) Handles txtXmlFileName.TextChanged
         Main.SharePriceSettingsChanged = True
+    End Sub
+
+    Private Sub btnOpenStockChartSettings_Click(sender As Object, e As EventArgs) Handles btnOpenStockChartSettings.Click
+        'Open a Stock Chart Default Settings file:
+
+        Dim SelectedFileName As String = ""
+
+        SelectedFileName = Main.Project.SelectDataFile("Share Price Chart Defaults", "SPChartDefaults")
+        Main.Message.Add("Selected Stock Chart Default Settings: " & SelectedFileName & vbCrLf)
+
+        txtStockChartSettings.Text = SelectedFileName
+
+        Main.Project.ReadXmlData(SelectedFileName, StockChartSettingsList)
+
+        'If StockChartSettingsList Is Nothing Then
+        '    Exit Sub
+        'End If
+
+        'XmlStockChartSettingsList.Rtf = XmlStockChartSettingsList.XmlToRtf(StockChartSettingsList.ToString, False)
+    End Sub
+
+    Private Sub btnDisplayStockChart_Click(sender As Object, e As EventArgs) Handles btnDisplayStockChart.Click
+        'Display the Stock Chart using a Settings List.
+
+        If StockChartSettingsList Is Nothing Then
+            Main.Message.AddWarning("Please open a Stock Chart Settings List" & vbCrLf)
+            Exit Sub
+        End If
+
+        Main.Message.Add("Displaying the Stock Chart using the Settings List" & vbCrLf)
+
+        Main.CheckOpenProjectAtRelativePath("\Stock Chart", "ADVL_Stock_Chart_1")
+
+        'Wait up to 8 seconds for the Stock Chart project to connect:
+        If Main.WaitForConnection(Main.ProNetName, "ADVL_Stock_Chart_1", 8000) = False Then
+            Main.Message.AddWarning("The Stock Chart project did not connect." & vbCrLf)
+        End If
+
+
+        'Send the instructions to the Chart application to display the stock chart.
+
+        ''Check that required selections have been made:
+        'If cmbXValues.SelectedItem Is Nothing Then
+        '    Message.AddWarning("Select a field for the X Values." & vbCrLf)
+        '    Exit Sub
+        'End If
+
+        'Build the XMessageBlock containing the Stock Chart settings.
+        'This will be send to the Stock Chart application to create the chart display.
+
+        'Dim ChartSettingsList As XDocument = XDocument.Parse("<?xml version=""1.0"" encoding=""utf-8"" standalone=""yes""?>" & vbCrLf & XmlStockChartSettingsList.Text)
+
+        Dim StockChartXMsgBlk = <?xml version="1.0" encoding="utf-8"?>
+                                <XMsgBlk>
+                                    <ClientLocn>DisplayChart</ClientLocn>
+                                    <XInfo>
+                                        <%= StockChartSettingsList.<ChartSettings> %>
+                                    </XInfo>
+                                </XMsgBlk>
+
+        '        <%= ChartSettingsList.<ChartSettings> %>
+        'Update the Settings List with the current chart settings:
+
+        ''Update the Input Data settinga:
+        ''<InputDataType>Database</InputDataType> - Currently only the Database type is available.
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<InputDatabasePath>.Value = txtSPChartDbPath.Text
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<InputQuery>.Value = txtSPChartQuery.Text
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<InputDataDescr>.Value = txtSeriesName.Text
+        StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<InputDataDescr>.Value = txtVersionName.Text
+
+        StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<InputQuery>.Value = txtQuery.Text
+
+        ''Add a warning if there is more than one entry in the SeriesInfoList:
+        'If StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<SeriesInfoList>.<SeriesInfo>.Count > 1 Then AddWarning("There is more than one entry in the Series Info List!" & vbCrLf)
+        ''Update the first entry in the SeriesInfoList:
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<SeriesInfoList>.<SeriesInfo>.<Name>.Value = txtSeriesName.Text
+        StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<SeriesInfoList>.<SeriesInfo>.<Name>.Value = txtVersionName.Text
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<SeriesInfoList>.<SeriesInfo>.<XValuesFieldName>.Value = cmbXValues.SelectedItem.ToString
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<SeriesInfoList>.<SeriesInfo>.<YValuesHighFieldName>.Value = DataGridView1.Rows(0).Cells(1).Value
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<SeriesInfoList>.<SeriesInfo>.<YValuesLowFieldName>.Value = DataGridView1.Rows(1).Cells(1).Value
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<SeriesInfoList>.<SeriesInfo>.<YValuesOpenFieldName>.Value = DataGridView1.Rows(2).Cells(1).Value
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<SeriesInfoList>.<SeriesInfo>.<YValuesCloseFieldName>.Value = DataGridView1.Rows(3).Cells(1).Value
+
+        ''Leave the AreaInfoList unchanged.
+
+        ''Update the Chart title settings:
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<TitlesCollection>.<Title>.<Text>.Value = txtChartTitle.Text
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<TitlesCollection>.<Title>.<Alignment>.Value = cmbAlignment.SelectedItem.ToString
+        'If txtChartTitle.ForeColor.ToArgb.ToString = "0" Then 'This color value is not valid for a chart title.
+        '    StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<TitlesCollection>.<Title>.<ForeColor>.Value = Color.Black.ToArgb.ToString
+        'Else
+        '    StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<TitlesCollection>.<Title>.<ForeColor>.Value = txtChartTitle.ForeColor.ToArgb.ToString
+        'End If
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<TitlesCollection>.<Title>.<Font>.<Name>.Value = txtChartTitle.Font.Name
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<TitlesCollection>.<Title>.<Font>.<Size>.Value = txtChartTitle.Font.Size
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<TitlesCollection>.<Title>.<Font>.<Bold>.Value = txtChartTitle.Font.Bold
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<TitlesCollection>.<Title>.<Font>.<Italic>.Value = txtChartTitle.Font.Italic
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<TitlesCollection>.<Title>.<Font>.<Strikeout>.Value = txtChartTitle.Font.Strikeout
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<TitlesCollection>.<Title>.<Font>.<Underline>.Value = txtChartTitle.Font.Underline
+
+        ''Add a warning if there is more than one entry in the SeriesCollection:
+        'If StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<SeriesCollection>.<Series>.Count > 1 Then AddWarning("There is more than one entry in the Series Collection!" & vbCrLf)
+        ''Update the first entry in the SeriesCollection:
+        'StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<SeriesCollection>.<Series>.<Name>.Value = txtSeriesName.Text
+        StockChartXMsgBlk.<XMsgBlk>.<XInfo>.<ChartSettings>.<SeriesCollection>.<Series>.<Name>.Value = txtVersionName.Text
+
+
+        'Send the XMessageBlock to the Stock Chart application:
+        Main.Message.XAddText("Message sent to [" & Main.ProNetName & "]." & "ADVL_Stock_Chart_1" & ":" & vbCrLf, "XmlSentNotice")
+        Main.Message.XAddXml(StockChartXMsgBlk.ToString)
+        Main.Message.XAddText(vbCrLf, "Normal") 'Add extra line
+
+        Main.SendMessageParams.ProjectNetworkName = Main.ProNetName
+        Main.SendMessageParams.ConnectionName = "ADVL_Stock_Chart_1"
+        Main.SendMessageParams.Message = StockChartXMsgBlk.ToString
+        If Main.bgwSendMessage.IsBusy Then
+            Main.Message.AddWarning("Send Message backgroundworker is busy." & vbCrLf)
+        Else
+            Main.bgwSendMessage.RunWorkerAsync(Main.SendMessageParams)
+        End If
     End Sub
 
 #End Region 'Form Methods ---------------------------------------------------------------------------------------------------------------------------------------------------------------------

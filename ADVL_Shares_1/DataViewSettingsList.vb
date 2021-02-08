@@ -92,6 +92,7 @@
             If item.<SelectedTab>.Value <> Nothing Then NewSettings.SelectedTab = item.<SelectedTab>.Value
             If item.<SaveFileDir>.Value <> Nothing Then NewSettings.SaveFileDir = item.<SaveFileDir>.Value
             If item.<XmlFileName>.Value <> Nothing Then NewSettings.XmlFileName = item.<XmlFileName>.Value
+            If item.<ChartSettingsFile>.Value <> Nothing Then NewSettings.ChartSettingsFile = item.<ChartSettingsFile>.Value
             For Each colItem In item.<ColumnList>.<Column>
                 NewSettings.TableCols.Add(colItem)
             Next
@@ -161,6 +162,7 @@
                                <SelectedTab><%= item.SelectedTab %></SelectedTab>
                                <SaveFileDir><%= item.SaveFileDir %></SaveFileDir>
                                <XmlFileName><%= item.XmlFileName %></XmlFileName>
+                               <ChartSettingsFile><%= item.ChartSettingsFile %></ChartSettingsFile>
                                <ColumnList>
                                    <%= From colItem In item.TableCols
                                        Select

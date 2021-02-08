@@ -45,14 +45,25 @@
         End Set
     End Property
 
-    Private _dataSummary As String = ""
-    Public Property DataSummary As String
+    'Private _dataSummary As String = ""
+    'Public Property DataSummary As String
+    '    Get
+    '        Return _dataSummary
+    '    End Get
+    '    Set(value As String)
+    '        _dataSummary = value
+    '        txtDataName.Text = _dataSummary
+    '    End Set
+    'End Property
+
+    Private _dataName As String = ""
+    Public Property DataName As String
         Get
-            Return _dataSummary
+            Return _dataName
         End Get
         Set(value As String)
-            _dataSummary = value
-            txtDataDescr.Text = _dataSummary
+            _dataName = value
+            txtDataName.Text = _dataName
         End Set
     End Property
 
@@ -83,7 +94,7 @@
             Main.CalculationsSettings.List(FormNo).Width = Me.Width
             Main.CalculationsSettings.List(FormNo).Height = Me.Height
             Main.CalculationsSettings.List(FormNo).Query = Query
-            Main.CalculationsSettings.List(FormNo).Description = txtDataDescr.Text
+            Main.CalculationsSettings.List(FormNo).Description = txtDataName.Text
             Main.CalculationsSettings.List(FormNo).VersionName = txtVersionName.Text
             Main.CalculationsSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
             Main.CalculationsSettings.List(FormNo).AutoApplyQuery = chkAutoApply.Checked.ToString
@@ -107,7 +118,7 @@
             Me.Width = Main.CalculationsSettings.List(FormNo).Width
             Me.Height = Main.CalculationsSettings.List(FormNo).Height
             Query = Main.CalculationsSettings.List(FormNo).Query
-            txtDataDescr.Text = Main.CalculationsSettings.List(FormNo).Description
+            txtDataName.Text = Main.CalculationsSettings.List(FormNo).Description
             txtVersionName.Text = Main.CalculationsSettings.List(FormNo).VersionName
             txtDataVersion.Text = Main.CalculationsSettings.List(FormNo).VersionName
             txtVersionDesc.Text = Main.CalculationsSettings.List(FormNo).VersionDesc
@@ -115,7 +126,42 @@
             TabControl1.SelectedIndex = Main.CalculationsSettings.List(FormNo).SelectedTab
             txtDirectory.Text = Main.CalculationsSettings.List(FormNo).SaveFileDir
             txtXmlFileName.Text = Main.CalculationsSettings.List(FormNo).XmlFileName
+            CheckFormPos()
         End If
+    End Sub
+
+    Private Sub CheckFormPos()
+        'Check that the form can be seen on a screen.
+
+        Dim MinWidthVisible As Integer = 192 'Minimum number of X pixels visible. The form will be moved if this many form pixels are not visible.
+        Dim MinHeightVisible As Integer = 64 'Minimum number of Y pixels visible. The form will be moved if this many form pixels are not visible.
+
+        Dim FormRect As New Rectangle(Me.Left, Me.Top, Me.Width, Me.Height)
+        Dim WARect As Rectangle = Screen.GetWorkingArea(FormRect) 'The Working Area rectangle - the usable area of the screen containing the form.
+
+        ''Check if the top of the form is less than zero:
+        'If Me.Top < 0 Then Me.Top = 0
+
+        'Check if the top of the form is above the top of the Working Area:
+        If Me.Top < WARect.Top Then
+            Me.Top = WARect.Top
+        End If
+
+        'Check if the top of the form is too close to the bottom of the Working Area:
+        If (Me.Top + MinHeightVisible) > (WARect.Top + WARect.Height) Then
+            Me.Top = WARect.Top + WARect.Height - MinHeightVisible
+        End If
+
+        'Check if the left edge of the form is too close to the right edge of the Working Area:
+        If (Me.Left + MinWidthVisible) > (WARect.Left + WARect.Width) Then
+            Me.Left = WARect.Left + WARect.Width - MinWidthVisible
+        End If
+
+        'Check if the right edge of the form is too close to the left edge of the Working Area:
+        If (Me.Left + Me.Width - MinWidthVisible) < WARect.Left Then
+            Me.Left = WARect.Left - Me.Width + MinWidthVisible
+        End If
+
     End Sub
 
     Protected Overrides Sub WndProc(ByRef m As Message) 'Save the form settings before the form is minimised:
@@ -260,7 +306,8 @@
         ApplyQuery()
     End Sub
 
-    Private Sub ApplyQuery()
+    'Private Sub ApplyQuery()
+    Public Sub ApplyQuery()
 
         If Main.CalculationsDbPath = "" Then
             Main.Message.AddWarning("A Calculations database has not been selected!" & vbCrLf)
@@ -317,9 +364,10 @@
         myConnection.Close()
     End Sub
 
-    Private Sub txtDataDescr_LostFocus(sender As Object, e As EventArgs) Handles txtDataDescr.LostFocus
-        'Update the description of the data shown on this Calculations form:
-        Main.UpdateCalculationsDataDescr(FormNo, txtDataDescr.Text)
+    Private Sub txtDataName_LostFocus(sender As Object, e As EventArgs) Handles txtDataName.LostFocus
+        'Update the name of the data shown on this Calculations form:
+        Main.UpdateCalculationsDataName(FormNo, txtDataName.Text)
+        _dataName = txtDataName.Text
     End Sub
 
     Private Sub DataGridView1_CellClick(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellClick
@@ -344,29 +392,29 @@
 
         'Display the data in DataGridView1
         connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source =" & Main.CalculationsDbPath 'DatabasePath
-            myConnection.ConnectionString = connString
-            myConnection.Open()
+        myConnection.ConnectionString = connString
+        myConnection.Open()
 
-            da = New OleDb.OleDbDataAdapter(Query, myConnection)
+        da = New OleDb.OleDbDataAdapter(Query, myConnection)
 
-            da.MissingSchemaAction = MissingSchemaAction.AddWithKey 'This statement is required to obtain the correct result from the statement: ds.Tables(0).Columns(0).MaxLength (This fixes a Microsoft bug: http://support.microsoft.com/kb/317175 )
+        da.MissingSchemaAction = MissingSchemaAction.AddWithKey 'This statement is required to obtain the correct result from the statement: ds.Tables(0).Columns(0).MaxLength (This fixes a Microsoft bug: http://support.microsoft.com/kb/317175 )
 
-            ds.Clear()
-            ds.Reset()
+        ds.Clear()
+        ds.Reset()
 
-            da.FillSchema(ds, SchemaType.Source, TableName)
+        da.FillSchema(ds, SchemaType.Source, TableName)
 
-            da.Fill(ds, TableName)
+        da.Fill(ds, TableName)
 
-            DataGridView1.AutoGenerateColumns = True
+        DataGridView1.AutoGenerateColumns = True
 
-            DataGridView1.EditMode = DataGridViewEditMode.EditOnKeystroke
+        DataGridView1.EditMode = DataGridViewEditMode.EditOnKeystroke
 
-            DataGridView1.DataSource = ds.Tables(0)
-            DataGridView1.AutoResizeColumns()
+        DataGridView1.DataSource = ds.Tables(0)
+        DataGridView1.AutoResizeColumns()
 
-            DataGridView1.Update()
-            DataGridView1.Refresh()
+        DataGridView1.Update()
+        DataGridView1.Refresh()
         myConnection.Close()
 
         'Save as a new version
@@ -377,7 +425,7 @@
         Main.CalculationsSettings.List(FormNo).Width = Me.Width
         Main.CalculationsSettings.List(FormNo).Height = Me.Height
         Main.CalculationsSettings.List(FormNo).Query = Query
-        Main.CalculationsSettings.List(FormNo).Description = txtDataDescr.Text
+        Main.CalculationsSettings.List(FormNo).Description = txtDataName.Text
 
         If Trim(txtVersionName.Text) = "" Then
             txtVersionName.Text = "Version 1"
@@ -413,10 +461,10 @@
         'Save the changes made to the data in DataGridView1 to the corresponding table in the database:
 
         If MessageBox.Show("Do you want to apply the changes to the table in the database?", "Confirm Changes", MessageBoxButtons.YesNoCancel) = DialogResult.Yes Then
-                'Apply the edits.
-            Else
-                'Cancel the Save Changes.
-                Exit Sub
+            'Apply the edits.
+        Else
+            'Cancel the Save Changes.
+            Exit Sub
         End If
 
         Dim cb = New OleDb.OleDbCommandBuilder(da)
@@ -504,7 +552,7 @@
         Main.CalculationsSettings.List(FormNo).Width = Me.Width
         Main.CalculationsSettings.List(FormNo).Height = Me.Height
         Main.CalculationsSettings.List(FormNo).Query = Query
-        Main.CalculationsSettings.List(FormNo).Description = txtDataDescr.Text
+        Main.CalculationsSettings.List(FormNo).Description = txtDataName.Text
         'Main.CalculationsSettings.List(FormNo).VersionNo 'This is only changed when a different version is selected.
         Main.CalculationsSettings.List(FormNo).VersionName = txtVersionName.Text
         Main.CalculationsSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
@@ -588,7 +636,7 @@
         Main.CalculationsSettings.List(FormNo).Width = Me.Width
         Main.CalculationsSettings.List(FormNo).Height = Me.Height
         Main.CalculationsSettings.List(FormNo).Query = Query
-        Main.CalculationsSettings.List(FormNo).Description = txtDataDescr.Text
+        Main.CalculationsSettings.List(FormNo).Description = txtDataName.Text
         Main.CalculationsSettings.List(FormNo).VersionName = txtVersionName.Text
         Main.CalculationsSettings.List(FormNo).VersionDesc = txtVersionDesc.Text
         Main.CalculationsSettings.List(FormNo).AutoApplyQuery = chkAutoApply.Checked.ToString
@@ -794,6 +842,10 @@
 
     Private Sub txtXmlFileName_TextChanged(sender As Object, e As EventArgs) Handles txtXmlFileName.TextChanged
         Main.CalculationsSettingsChanged = True
+    End Sub
+
+    Private Sub txtDataDescr_TextChanged(sender As Object, e As EventArgs) Handles txtDataName.TextChanged
+
     End Sub
 
 #End Region 'Form Methods ---------------------------------------------------------------------------------------------------------------------------------------------------------------------

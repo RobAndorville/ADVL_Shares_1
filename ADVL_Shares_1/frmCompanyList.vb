@@ -70,8 +70,42 @@
                 txtCompanyListFile.Text = Settings.<FormSettings>.<CompanyListFile>.Value
                 LoadSettingsFile()
             End If
-
+            CheckFormPos()
         End If
+    End Sub
+
+    Private Sub CheckFormPos()
+        'Check that the form can be seen on a screen.
+
+        Dim MinWidthVisible As Integer = 192 'Minimum number of X pixels visible. The form will be moved if this many form pixels are not visible.
+        Dim MinHeightVisible As Integer = 64 'Minimum number of Y pixels visible. The form will be moved if this many form pixels are not visible.
+
+        Dim FormRect As New Rectangle(Me.Left, Me.Top, Me.Width, Me.Height)
+        Dim WARect As Rectangle = Screen.GetWorkingArea(FormRect) 'The Working Area rectangle - the usable area of the screen containing the form.
+
+        ''Check if the top of the form is less than zero:
+        'If Me.Top < 0 Then Me.Top = 0
+
+        'Check if the top of the form is above the top of the Working Area:
+        If Me.Top < WARect.Top Then
+            Me.Top = WARect.Top
+        End If
+
+        'Check if the top of the form is too close to the bottom of the Working Area:
+        If (Me.Top + MinHeightVisible) > (WARect.Top + WARect.Height) Then
+            Me.Top = WARect.Top + WARect.Height - MinHeightVisible
+        End If
+
+        'Check if the left edge of the form is too close to the right edge of the Working Area:
+        If (Me.Left + MinWidthVisible) > (WARect.Left + WARect.Width) Then
+            Me.Left = WARect.Left + WARect.Width - MinWidthVisible
+        End If
+
+        'Check if the right edge of the form is too close to the left edge of the Working Area:
+        If (Me.Left + Me.Width - MinWidthVisible) < WARect.Left Then
+            Me.Left = WARect.Left - Me.Width + MinWidthVisible
+        End If
+
     End Sub
 
     Protected Overrides Sub WndProc(ByRef m As Message) 'Save the form settings before the form is minimised:
@@ -96,8 +130,22 @@
         cmbCompanyListDb.Items.Add("Calculations")
         cmbCompanyListDb.SelectedIndex = 0 'Select the first item as default.
 
-        txtChartDataTable.Text = Main.cmbChartDataTable.SelectedItem.ToString
-        txtCompanyCodeColumn.Text = Main.cmbCompanyCodeCol.SelectedItem.ToString
+        If Main.cmbChartDataTable.SelectedIndex = -1 Then
+            txtChartDataTable.Text = ""
+            Main.Message.AddWarning("Select the Chart Data Table on the Share Prices \ Input Data Tab on the Shares application." & vbCrLf)
+            Main.Message.AddWarning("  Then restart this form." & vbCrLf)
+        Else
+            txtChartDataTable.Text = Main.cmbChartDataTable.SelectedItem.ToString()
+        End If
+
+        If Main.cmbCompanyCodeCol.SelectedIndex = -1 Then
+            txtCompanyCodeColumn.Text = ""
+            Main.Message.AddWarning("Select the Company Code Column on the Share Prices \ Input Data Tab on the Shares application." & vbCrLf)
+            Main.Message.AddWarning("  Then restart this form." & vbCrLf)
+        Else
+            txtCompanyCodeColumn.Text = Main.cmbCompanyCodeCol.SelectedItem.ToString
+        End If
+
 
         RestoreFormSettings()   'Restore the form settings
 
@@ -462,7 +510,8 @@
                 Zip = New ADVL_Utilities_Library_1.ZipComp
                 Zip.ArchivePath = Main.Project.DataLocn.Path
                 Zip.SelectFile() 'Show the SelectFile form.
-                Zip.SelectFileForm.ApplicationName = Main.Project.ApplicationName
+                'Zip.SelectFileForm.ApplicationName = Main.Project.ApplicationName
+                Zip.SelectFileForm.ApplicationName = Main.Project.Application.Name
                 Zip.SelectFileForm.SettingsLocn = Main.Project.SettingsLocn
                 Zip.SelectFileForm.Show()
                 Zip.SelectFileForm.RestoreFormSettings()

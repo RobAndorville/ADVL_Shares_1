@@ -24,7 +24,7 @@ Partial Class frmCalculations
     Private Sub InitializeComponent()
         Me.components = New System.ComponentModel.Container()
         Me.btnSaveChanges = New System.Windows.Forms.Button()
-        Me.txtDataDescr = New System.Windows.Forms.TextBox()
+        Me.txtDataName = New System.Windows.Forms.TextBox()
         Me.Label1 = New System.Windows.Forms.Label()
         Me.DataGridView1 = New System.Windows.Forms.DataGridView()
         Me.btnExit = New System.Windows.Forms.Button()
@@ -91,23 +91,23 @@ Partial Class frmCalculations
         ".")
         Me.btnSaveChanges.UseVisualStyleBackColor = True
         '
-        'txtDataDescr
+        'txtDataName
         '
-        Me.txtDataDescr.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+        Me.txtDataName.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtDataDescr.Location = New System.Drawing.Point(193, 13)
-        Me.txtDataDescr.Name = "txtDataDescr"
-        Me.txtDataDescr.Size = New System.Drawing.Size(428, 20)
-        Me.txtDataDescr.TabIndex = 68
+        Me.txtDataName.Location = New System.Drawing.Point(178, 13)
+        Me.txtDataName.Name = "txtDataName"
+        Me.txtDataName.Size = New System.Drawing.Size(443, 20)
+        Me.txtDataName.TabIndex = 68
         '
         'Label1
         '
         Me.Label1.AutoSize = True
         Me.Label1.Location = New System.Drawing.Point(110, 16)
         Me.Label1.Name = "Label1"
-        Me.Label1.Size = New System.Drawing.Size(77, 13)
+        Me.Label1.Size = New System.Drawing.Size(62, 13)
         Me.Label1.TabIndex = 67
-        Me.Label1.Text = "Data summary:"
+        Me.Label1.Text = "Data name:"
         '
         'DataGridView1
         '
@@ -569,7 +569,7 @@ Partial Class frmCalculations
         Me.Controls.Add(Me.txtDataVersion)
         Me.Controls.Add(Me.TabControl1)
         Me.Controls.Add(Me.btnSaveChanges)
-        Me.Controls.Add(Me.txtDataDescr)
+        Me.Controls.Add(Me.txtDataName)
         Me.Controls.Add(Me.Label1)
         Me.Controls.Add(Me.btnExit)
         Me.Name = "frmCalculations"
@@ -589,7 +589,7 @@ Partial Class frmCalculations
     End Sub
 
     Friend WithEvents btnSaveChanges As Button
-    Friend WithEvents txtDataDescr As TextBox
+    Friend WithEvents txtDataName As TextBox
     Friend WithEvents Label1 As Label
     Friend WithEvents DataGridView1 As DataGridView
     Friend WithEvents btnExit As Button

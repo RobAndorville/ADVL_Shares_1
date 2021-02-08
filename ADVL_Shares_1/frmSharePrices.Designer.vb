@@ -30,7 +30,7 @@ Partial Class frmSharePrices
         Me.txtQuery = New System.Windows.Forms.TextBox()
         Me.DataGridView1 = New System.Windows.Forms.DataGridView()
         Me.Label1 = New System.Windows.Forms.Label()
-        Me.txtSharePriceDataDescr = New System.Windows.Forms.TextBox()
+        Me.txtDataName = New System.Windows.Forms.TextBox()
         Me.btnDisplay = New System.Windows.Forms.Button()
         Me.chkAutoApply = New System.Windows.Forms.CheckBox()
         Me.btnDesign = New System.Windows.Forms.Button()
@@ -49,6 +49,11 @@ Partial Class frmSharePrices
         Me.TabControl1 = New System.Windows.Forms.TabControl()
         Me.TabPage1 = New System.Windows.Forms.TabPage()
         Me.TabPage2 = New System.Windows.Forms.TabPage()
+        Me.GroupBox1 = New System.Windows.Forms.GroupBox()
+        Me.btnDisplayStockChart = New System.Windows.Forms.Button()
+        Me.Label12 = New System.Windows.Forms.Label()
+        Me.txtStockChartSettings = New System.Windows.Forms.TextBox()
+        Me.btnOpenStockChartSettings = New System.Windows.Forms.Button()
         Me.btnSaveVersionChanges = New System.Windows.Forms.Button()
         Me.btnCancelVersionChanges = New System.Windows.Forms.Button()
         Me.btnNewVersion = New System.Windows.Forms.Button()
@@ -74,6 +79,7 @@ Partial Class frmSharePrices
         Me.TabControl1.SuspendLayout()
         Me.TabPage1.SuspendLayout()
         Me.TabPage2.SuspendLayout()
+        Me.GroupBox1.SuspendLayout()
         Me.TabPage3.SuspendLayout()
         Me.TabPage4.SuspendLayout()
         Me.SuspendLayout()
@@ -81,7 +87,7 @@ Partial Class frmSharePrices
         'btnExit
         '
         Me.btnExit.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnExit.Location = New System.Drawing.Point(627, 12)
+        Me.btnExit.Location = New System.Drawing.Point(617, 12)
         Me.btnExit.Name = "btnExit"
         Me.btnExit.Size = New System.Drawing.Size(64, 22)
         Me.btnExit.TabIndex = 8
@@ -104,13 +110,13 @@ Partial Class frmSharePrices
         Me.cmbSelectTable.FormattingEnabled = True
         Me.cmbSelectTable.Location = New System.Drawing.Point(89, 8)
         Me.cmbSelectTable.Name = "cmbSelectTable"
-        Me.cmbSelectTable.Size = New System.Drawing.Size(506, 21)
+        Me.cmbSelectTable.Size = New System.Drawing.Size(496, 21)
         Me.cmbSelectTable.TabIndex = 35
         '
         'btnApplyQuery
         '
         Me.btnApplyQuery.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnApplyQuery.Location = New System.Drawing.Point(601, 33)
+        Me.btnApplyQuery.Location = New System.Drawing.Point(591, 33)
         Me.btnApplyQuery.Name = "btnApplyQuery"
         Me.btnApplyQuery.Size = New System.Drawing.Size(64, 22)
         Me.btnApplyQuery.TabIndex = 40
@@ -133,7 +139,7 @@ Partial Class frmSharePrices
         Me.txtQuery.Location = New System.Drawing.Point(89, 35)
         Me.txtQuery.Multiline = True
         Me.txtQuery.Name = "txtQuery"
-        Me.txtQuery.Size = New System.Drawing.Size(506, 77)
+        Me.txtQuery.Size = New System.Drawing.Size(496, 77)
         Me.txtQuery.TabIndex = 38
         '
         'DataGridView1
@@ -144,7 +150,7 @@ Partial Class frmSharePrices
         Me.DataGridView1.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize
         Me.DataGridView1.Location = New System.Drawing.Point(6, 6)
         Me.DataGridView1.Name = "DataGridView1"
-        Me.DataGridView1.Size = New System.Drawing.Size(659, 419)
+        Me.DataGridView1.Size = New System.Drawing.Size(649, 419)
         Me.DataGridView1.TabIndex = 41
         '
         'Label1
@@ -152,23 +158,23 @@ Partial Class frmSharePrices
         Me.Label1.AutoSize = True
         Me.Label1.Location = New System.Drawing.Point(110, 16)
         Me.Label1.Name = "Label1"
-        Me.Label1.Size = New System.Drawing.Size(77, 13)
+        Me.Label1.Size = New System.Drawing.Size(62, 13)
         Me.Label1.TabIndex = 42
-        Me.Label1.Text = "Data summary:"
+        Me.Label1.Text = "Data name:"
         '
-        'txtSharePriceDataDescr
+        'txtDataName
         '
-        Me.txtSharePriceDataDescr.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+        Me.txtDataName.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtSharePriceDataDescr.Location = New System.Drawing.Point(193, 13)
-        Me.txtSharePriceDataDescr.Name = "txtSharePriceDataDescr"
-        Me.txtSharePriceDataDescr.Size = New System.Drawing.Size(428, 20)
-        Me.txtSharePriceDataDescr.TabIndex = 43
+        Me.txtDataName.Location = New System.Drawing.Point(178, 13)
+        Me.txtDataName.Name = "txtDataName"
+        Me.txtDataName.Size = New System.Drawing.Size(433, 20)
+        Me.txtDataName.TabIndex = 43
         '
         'btnDisplay
         '
         Me.btnDisplay.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnDisplay.Location = New System.Drawing.Point(601, 6)
+        Me.btnDisplay.Location = New System.Drawing.Point(591, 6)
         Me.btnDisplay.Name = "btnDisplay"
         Me.btnDisplay.Size = New System.Drawing.Size(64, 22)
         Me.btnDisplay.TabIndex = 53
@@ -188,7 +194,7 @@ Partial Class frmSharePrices
         'btnDesign
         '
         Me.btnDesign.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnDesign.Location = New System.Drawing.Point(601, 59)
+        Me.btnDesign.Location = New System.Drawing.Point(591, 59)
         Me.btnDesign.Name = "btnDesign"
         Me.btnDesign.Size = New System.Drawing.Size(64, 22)
         Me.btnDesign.TabIndex = 58
@@ -303,7 +309,7 @@ Partial Class frmSharePrices
         Me.TabControl1.Location = New System.Drawing.Point(12, 65)
         Me.TabControl1.Name = "TabControl1"
         Me.TabControl1.SelectedIndex = 0
-        Me.TabControl1.Size = New System.Drawing.Size(679, 457)
+        Me.TabControl1.Size = New System.Drawing.Size(669, 457)
         Me.TabControl1.TabIndex = 61
         '
         'TabPage1
@@ -312,13 +318,14 @@ Partial Class frmSharePrices
         Me.TabPage1.Location = New System.Drawing.Point(4, 22)
         Me.TabPage1.Name = "TabPage1"
         Me.TabPage1.Padding = New System.Windows.Forms.Padding(3)
-        Me.TabPage1.Size = New System.Drawing.Size(671, 431)
+        Me.TabPage1.Size = New System.Drawing.Size(661, 431)
         Me.TabPage1.TabIndex = 0
         Me.TabPage1.Text = "Data"
         Me.TabPage1.UseVisualStyleBackColor = True
         '
         'TabPage2
         '
+        Me.TabPage2.Controls.Add(Me.GroupBox1)
         Me.TabPage2.Controls.Add(Me.btnSaveVersionChanges)
         Me.TabPage2.Controls.Add(Me.btnCancelVersionChanges)
         Me.TabPage2.Controls.Add(Me.btnNewVersion)
@@ -337,10 +344,62 @@ Partial Class frmSharePrices
         Me.TabPage2.Location = New System.Drawing.Point(4, 22)
         Me.TabPage2.Name = "TabPage2"
         Me.TabPage2.Padding = New System.Windows.Forms.Padding(3)
-        Me.TabPage2.Size = New System.Drawing.Size(671, 431)
+        Me.TabPage2.Size = New System.Drawing.Size(661, 431)
         Me.TabPage2.TabIndex = 1
         Me.TabPage2.Text = "Query"
         Me.TabPage2.UseVisualStyleBackColor = True
+        '
+        'GroupBox1
+        '
+        Me.GroupBox1.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.GroupBox1.Controls.Add(Me.btnDisplayStockChart)
+        Me.GroupBox1.Controls.Add(Me.Label12)
+        Me.GroupBox1.Controls.Add(Me.txtStockChartSettings)
+        Me.GroupBox1.Controls.Add(Me.btnOpenStockChartSettings)
+        Me.GroupBox1.Location = New System.Drawing.Point(6, 259)
+        Me.GroupBox1.Name = "GroupBox1"
+        Me.GroupBox1.Size = New System.Drawing.Size(649, 55)
+        Me.GroupBox1.TabIndex = 68
+        Me.GroupBox1.TabStop = False
+        Me.GroupBox1.Text = "Chart"
+        '
+        'btnDisplayStockChart
+        '
+        Me.btnDisplayStockChart.Location = New System.Drawing.Point(6, 19)
+        Me.btnDisplayStockChart.Name = "btnDisplayStockChart"
+        Me.btnDisplayStockChart.Size = New System.Drawing.Size(90, 22)
+        Me.btnDisplayStockChart.TabIndex = 143
+        Me.btnDisplayStockChart.Text = "Display Chart"
+        Me.btnDisplayStockChart.UseVisualStyleBackColor = True
+        '
+        'Label12
+        '
+        Me.Label12.AutoSize = True
+        Me.Label12.Location = New System.Drawing.Point(102, 23)
+        Me.Label12.Name = "Label12"
+        Me.Label12.Size = New System.Drawing.Size(48, 13)
+        Me.Label12.TabIndex = 69
+        Me.Label12.Text = "Settings:"
+        '
+        'txtStockChartSettings
+        '
+        Me.txtStockChartSettings.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.txtStockChartSettings.Location = New System.Drawing.Point(156, 19)
+        Me.txtStockChartSettings.Name = "txtStockChartSettings"
+        Me.txtStockChartSettings.Size = New System.Drawing.Size(439, 20)
+        Me.txtStockChartSettings.TabIndex = 67
+        '
+        'btnOpenStockChartSettings
+        '
+        Me.btnOpenStockChartSettings.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.btnOpenStockChartSettings.Location = New System.Drawing.Point(601, 18)
+        Me.btnOpenStockChartSettings.Name = "btnOpenStockChartSettings"
+        Me.btnOpenStockChartSettings.Size = New System.Drawing.Size(42, 22)
+        Me.btnOpenStockChartSettings.TabIndex = 66
+        Me.btnOpenStockChartSettings.Text = "Open"
+        Me.btnOpenStockChartSettings.UseVisualStyleBackColor = True
         '
         'btnSaveVersionChanges
         '
@@ -375,7 +434,7 @@ Partial Class frmSharePrices
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.txtVersionName.Location = New System.Drawing.Point(75, 146)
         Me.txtVersionName.Name = "txtVersionName"
-        Me.txtVersionName.Size = New System.Drawing.Size(590, 20)
+        Me.txtVersionName.Size = New System.Drawing.Size(580, 20)
         Me.txtVersionName.TabIndex = 62
         '
         'Label7
@@ -394,7 +453,7 @@ Partial Class frmSharePrices
         Me.txtVersionDesc.Location = New System.Drawing.Point(75, 172)
         Me.txtVersionDesc.Multiline = True
         Me.txtVersionDesc.Name = "txtVersionDesc"
-        Me.txtVersionDesc.Size = New System.Drawing.Size(590, 77)
+        Me.txtVersionDesc.Size = New System.Drawing.Size(580, 77)
         Me.txtVersionDesc.TabIndex = 60
         '
         'Label6
@@ -420,7 +479,7 @@ Partial Class frmSharePrices
         Me.TabPage3.Controls.Add(Me.txtSelVersionQuery)
         Me.TabPage3.Location = New System.Drawing.Point(4, 22)
         Me.TabPage3.Name = "TabPage3"
-        Me.TabPage3.Size = New System.Drawing.Size(671, 431)
+        Me.TabPage3.Size = New System.Drawing.Size(661, 431)
         Me.TabPage3.TabIndex = 2
         Me.TabPage3.Text = "Versions"
         Me.TabPage3.UseVisualStyleBackColor = True
@@ -533,7 +592,7 @@ Partial Class frmSharePrices
         Me.TabPage4.Controls.Add(Me.Label2)
         Me.TabPage4.Location = New System.Drawing.Point(4, 22)
         Me.TabPage4.Name = "TabPage4"
-        Me.TabPage4.Size = New System.Drawing.Size(671, 431)
+        Me.TabPage4.Size = New System.Drawing.Size(661, 431)
         Me.TabPage4.TabIndex = 3
         Me.TabPage4.Text = "Information"
         Me.TabPage4.UseVisualStyleBackColor = True
@@ -544,7 +603,7 @@ Partial Class frmSharePrices
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.txtDataVersion.Location = New System.Drawing.Point(60, 39)
         Me.txtDataVersion.Name = "txtDataVersion"
-        Me.txtDataVersion.Size = New System.Drawing.Size(631, 20)
+        Me.txtDataVersion.Size = New System.Drawing.Size(621, 20)
         Me.txtDataVersion.TabIndex = 63
         '
         'Label8
@@ -560,12 +619,12 @@ Partial Class frmSharePrices
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
-        Me.ClientSize = New System.Drawing.Size(703, 534)
+        Me.ClientSize = New System.Drawing.Size(693, 534)
         Me.Controls.Add(Me.Label8)
         Me.Controls.Add(Me.txtDataVersion)
         Me.Controls.Add(Me.TabControl1)
         Me.Controls.Add(Me.btnSaveChanges)
-        Me.Controls.Add(Me.txtSharePriceDataDescr)
+        Me.Controls.Add(Me.txtDataName)
         Me.Controls.Add(Me.Label1)
         Me.Controls.Add(Me.btnExit)
         Me.Name = "frmSharePrices"
@@ -575,6 +634,8 @@ Partial Class frmSharePrices
         Me.TabPage1.ResumeLayout(False)
         Me.TabPage2.ResumeLayout(False)
         Me.TabPage2.PerformLayout()
+        Me.GroupBox1.ResumeLayout(False)
+        Me.GroupBox1.PerformLayout()
         Me.TabPage3.ResumeLayout(False)
         Me.TabPage3.PerformLayout()
         Me.TabPage4.ResumeLayout(False)
@@ -592,7 +653,7 @@ Partial Class frmSharePrices
     Friend WithEvents txtQuery As TextBox
     Friend WithEvents DataGridView1 As DataGridView
     Friend WithEvents Label1 As Label
-    Friend WithEvents txtSharePriceDataDescr As TextBox
+    Friend WithEvents txtDataName As TextBox
     Friend WithEvents btnDisplay As Button
     Friend WithEvents chkAutoApply As CheckBox
     Friend WithEvents btnDesign As Button
@@ -632,4 +693,9 @@ Partial Class frmSharePrices
     Friend WithEvents btnSelect As Button
     Friend WithEvents btnSaveVersionChanges As Button
     Friend WithEvents btnCancelVersionChanges As Button
+    Friend WithEvents GroupBox1 As GroupBox
+    Friend WithEvents Label12 As Label
+    Friend WithEvents txtStockChartSettings As TextBox
+    Friend WithEvents btnOpenStockChartSettings As Button
+    Friend WithEvents btnDisplayStockChart As Button
 End Class

@@ -160,4 +160,14 @@
         End Set
     End Property
 
+    Private _chartSettingsFile As String = "" 'The name of the chart settings file.
+    Property ChartSettingsFile As String
+        Get
+            Return _chartSettingsFile
+        End Get
+        Set(value As String)
+            _chartSettingsFile = value
+        End Set
+    End Property
+
 End Class

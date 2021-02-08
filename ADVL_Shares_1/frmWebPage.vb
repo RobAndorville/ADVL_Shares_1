@@ -54,7 +54,9 @@ Public Class frmWebPage
         End Get
         Set(value As String)
             _fileName = value
-            txtDocumentFile.Text = _fileName
+            txtDocumentFile.Text = _fileName 'Display the document filename on the form.
+            Me.Text = Main.ApplicationInfo.Name & " - Workflow - " & IO.Path.GetFileNameWithoutExtension(_fileName) 'Update the text at the top of the window.
+            RestoreFormSettings() 'Resore the form settings used to display this web page.
         End Set
     End Property
 
@@ -132,14 +134,20 @@ Public Class frmWebPage
 
         'Add code to include other settings to save after the comment line <!---->
 
-        Dim SettingsFileName As String = "FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & ".xml"
+        'Dim SettingsFileName As String = "FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & ".xml"
+
+        'NOTE: After a workflow is loaded, Me.Text is changed to AppName - Workflow - WorkflowName
+        Dim SettingsFileName As String = "FormSettings_" & Me.Text & ".xml"
         Main.Project.SaveXmlSettings(SettingsFileName, settingsData)
     End Sub
 
     Private Sub RestoreFormSettings()
         'Read the form settings from an XML document.
 
-        Dim SettingsFileName As String = "FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & ".xml"
+        'Dim SettingsFileName As String = "FormSettings_" & Main.ApplicationInfo.Name & "_" & Me.Text & ".xml"
+
+        'NOTE: After a workflow is loaded, Me.Text is changed to AppName - Workflow - WorkflowName
+        Dim SettingsFileName As String = "FormSettings_" & Me.Text & ".xml"
 
         If Main.Project.SettingsFileExists(SettingsFileName) Then
             Dim Settings As System.Xml.Linq.XDocument
@@ -157,6 +165,40 @@ Public Class frmWebPage
 
             'Add code to read other saved setting here:
 
+            CheckFormPos()
+        End If
+    End Sub
+
+    Private Sub CheckFormPos()
+        'Check that the form can be seen on a screen.
+
+        Dim MinWidthVisible As Integer = 192 'Minimum number of X pixels visible. The form will be moved if this many form pixels are not visible.
+        Dim MinHeightVisible As Integer = 64 'Minimum number of Y pixels visible. The form will be moved if this many form pixels are not visible.
+
+        Dim FormRect As New Rectangle(Me.Left, Me.Top, Me.Width, Me.Height)
+        Dim WARect As Rectangle = Screen.GetWorkingArea(FormRect) 'The Working Area rectangle - the usable area of the screen containing the form.
+
+        ''Check if the top of the form is less than zero:
+        'If Me.Top < 0 Then Me.Top = 0
+
+        'Check if the top of the form is above the top of the Working Area:
+        If Me.Top < WARect.Top Then
+            Me.Top = WARect.Top
+        End If
+
+        'Check if the top of the form is too close to the bottom of the Working Area:
+        If (Me.Top + MinHeightVisible) > (WARect.Top + WARect.Height) Then
+            Me.Top = WARect.Top + WARect.Height - MinHeightVisible
+        End If
+
+        'Check if the left edge of the form is too close to the right edge of the Working Area:
+        If (Me.Left + MinWidthVisible) > (WARect.Left + WARect.Width) Then
+            Me.Left = WARect.Left + WARect.Width - MinWidthVisible
+        End If
+
+        'Check if the right edge of the form is too close to the left edge of the Working Area:
+        If (Me.Left + Me.Width - MinWidthVisible) < WARect.Left Then
+            Me.Left = WARect.Left - Me.Width + MinWidthVisible
         End If
     End Sub
 
@@ -175,10 +217,14 @@ Public Class frmWebPage
 #Region " Form Display Methods - Code used to display this form." '============================================================================================================================
 
     Private Sub Form_Load(sender As Object, e As EventArgs) Handles Me.Load
-        RestoreFormSettings()   'Restore the form settings
+        'RestoreFormSettings()   'Restore the form settings
 
         Me.WebBrowser1.ObjectForScripting = Me
 
+        'Add page title:
+        'Me.Text = Main.ApplicationInfo.Name & " - Workflow Web Page"
+        Me.Text = Main.ApplicationInfo.Name & " - Workflow"
+        RestoreFormSettings()   'Restore the form settings
     End Sub
 
     Private Sub btnExit_Click(sender As Object, e As EventArgs) Handles btnExit.Click
@@ -346,7 +392,7 @@ Public Class frmWebPage
         Main.Project.ReadXmlData(SettingsFileName, XDocSettings)
 
         If XDocSettings Is Nothing Then
-            Main.Message.Add("No HTML Settings file : " & SettingsFileName & vbCrLf)
+            'Main.Message.Add("No HTML Settings file : " & SettingsFileName & vbCrLf) 'THIS WARNING MESSAGE IS NOT REALLY NEEDED!
         Else
 
             Dim XSettings As New System.Xml.XmlDocument
@@ -395,31 +441,31 @@ Public Class frmWebPage
     End Sub
 
 
-    Private Sub XSeq_Instruction(Info As String, Locn As String) Handles XSeq.Instruction
+    Private Sub XSeq_Instruction(Data As String, Locn As String) Handles XSeq.Instruction
         'Execute each instruction produced by running the XSeq file.
 
         Select Case Locn
             Case "Settings:SendData:LatDegrees" 'REDUNDANT!
-                RestoreSetting("SendData", "LatDegrees", Info)
+                RestoreSetting("SendData", "LatDegrees", Data)
 
             Case "Settings:SendData:LongDegrees" 'REDUNDANT!
-                RestoreSetting("SendData", "LongDegrees", Info)
+                RestoreSetting("SendData", "LongDegrees", Data)
 
             Case "Settings:Form:Name"
-                FormName = Info
+                FormName = Data
 
             Case "Settings:Form:Item:Name"
-                ItemName = Info
+                ItemName = Data
 
             Case "Settings:Form:Item:Value"
-                RestoreSetting(FormName, ItemName, Info)
+                RestoreSetting(FormName, ItemName, Data)
 
             Case "Settings:Form:SelectId"
-                SelectId = Info
+                SelectId = Data
 
             Case "Settings:Form:OptionText"
-                'RestoreOption(FormName, SelectId, Info)
-                RestoreOption(SelectId, Info)
+                'RestoreOption(FormName, SelectId, Data)
+                RestoreOption(SelectId, Data)
 
             Case "Settings"
 
@@ -428,7 +474,7 @@ Public Class frmWebPage
             Case Else
 
                 'If the instructions are not saved web page settings identified above, send them directly to the web page:
-                XMsgInstruction(Info, Locn) 'The JavaScript function (also called XMsgInstruction) will attempt to process this instruction.
+                XMsgInstruction(Data, Locn) 'The JavaScript function (also called XMsgInstruction) will attempt to process this instruction.
 
         End Select
     End Sub
@@ -468,12 +514,52 @@ Public Class frmWebPage
         Main.InstrReceived = XMsg
     End Sub
 
+    Public Sub RunXSequence(ByVal XSequence As String)
+        'Run the XMSequence
+        Dim XmlSeq As New System.Xml.XmlDocument
+        XmlSeq.LoadXml(XSequence)
+        Main.XSeq.RunXSequence(XmlSeq, Status)
+    End Sub
+
     Public Function GetConnectionName() As String
-        'Return the Connection Name of the Document Library application.
+        'Return the Connection Name of the project.
         Return Main.ConnectionName
     End Function
 
-    Public Sub SendXMessage(ByVal AppNetName As String, ByVal ConnName As String, ByVal XMsg As String)
+    'Public Function GetAppNetName() As String
+    '    'Return the Application Network Name of the application.
+
+    '    'Main.Message.Add("AppNetName = " & Main.AppNetName & vbCrLf)
+
+    '    Return Main.AppNetName
+
+    'End Function
+
+    Public Function GetProNetName() As String
+        'Return the Project Network Name of the project.
+
+        Return Main.ProNetName
+
+    End Function
+
+    'Public Sub SendXMessage(ByVal AppNetName As String, ByVal ConnName As String, ByVal XMsg As String)
+    '    'Send the XMsg to the application with the connection name ConnName.
+    '    If IsNothing(Main.client) Then
+    '        Main.Message.Add("No client connection available!" & vbCrLf)
+    '    Else
+    '        If Main.client.State = ServiceModel.CommunicationState.Faulted Then
+    '            Main.Message.Add("client state is faulted. Message not sent!" & vbCrLf)
+    '        Else
+    '            Main.client.SendMessageAsync(AppNetName, ConnName, XMsg)
+    '            Main.Message.XAddText("Message sent to " & ConnName & " (AppNet: " & AppNetName & ") " & ":" & vbCrLf, "XmlSentNotice") 'UPDATED 2Feb19
+    '            Main.Message.XAddXml(XMsg)
+    '            Main.Message.XAddText(vbCrLf, "Normal") 'Add extra line
+    '        End If
+    '    End If
+
+    'End Sub
+
+    Public Sub SendXMessage(ByVal ConnName As String, ByVal XMsg As String)
         'Send the XMsg to the application with the connection name ConnName.
         If IsNothing(Main.client) Then
             Main.Message.Add("No client connection available!" & vbCrLf)
@@ -481,13 +567,200 @@ Public Class frmWebPage
             If Main.client.State = ServiceModel.CommunicationState.Faulted Then
                 Main.Message.Add("client state is faulted. Message not sent!" & vbCrLf)
             Else
-                Main.client.SendMessageAsync(AppNetName, ConnName, XMsg)
-                Main.Message.XAddText("Message sent to " & ConnName & " (AppNet: " & AppNetName & ") " & ":" & vbCrLf, "XmlSentNotice") 'UPDATED 2Feb19
-                Main.Message.XAddXml(XMsg)
-                Main.Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                'Main.client.SendMessageAsync(Main.ProNetName, ConnName, XMsg)
+                If Main.bgwSendMessage.IsBusy Then
+                    Application.DoEvents()
+                    System.Threading.Thread.Sleep(100) 'Pause for 100ms
+                    If Main.bgwSendMessage.IsBusy Then
+                        Application.DoEvents()
+                        System.Threading.Thread.Sleep(200) 'Pause for 200ms
+                        If Main.bgwSendMessage.IsBusy Then
+                            Application.DoEvents()
+                            System.Threading.Thread.Sleep(400) 'Pause for 400ms
+                        End If
+                    End If
+                End If
+                If Main.bgwSendMessage.IsBusy Then
+                    Main.Message.AddWarning("Send Message backgroundworker is busy." & vbCrLf)
+                Else
+                    Dim SendMessageParams As New Main.clsSendMessageParams
+                    SendMessageParams.ProjectNetworkName = Main.ProNetName
+                    SendMessageParams.ConnectionName = ConnName
+                    SendMessageParams.Message = XMsg
+                    Main.bgwSendMessage.RunWorkerAsync(SendMessageParams)
+                    'Main.Message.XAddText("Message sent to " & ConnName & " (ProNet: " & Main.ProNetName & ") " & ":" & vbCrLf, "XmlSentNotice") 'UPDATED 2Feb19
+                    If Main.ShowXMessages Then
+                        Main.Message.XAddText("Message sent to " & "[" & Main.ProNetName & "]." & ConnName & ":" & vbCrLf, "XmlSentNotice")
+                        Main.Message.XAddXml(XMsg)
+                        Main.Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                    End If
+                End If
             End If
         End If
+    End Sub
 
+    Public Sub SendXMessageExt(ByVal ProNetName As String, ByVal ConnName As String, ByVal XMsg As String)
+        'Send the XMsg to the application with the connection name ConnName and Project Network Name ProNetname.
+        'This version can send the XMessage to a connection external to the current Project Network.
+        If IsNothing(Main.client) Then
+            Main.Message.Add("No client connection available!" & vbCrLf)
+        Else
+            If Main.client.State = ServiceModel.CommunicationState.Faulted Then
+                Main.Message.Add("client state is faulted. Message not sent!" & vbCrLf)
+            Else
+                'Main.client.SendMessageAsync(ProNetName, ConnName, XMsg)
+                If Main.bgwSendMessage.IsBusy Then
+                    Application.DoEvents()
+                    System.Threading.Thread.Sleep(100) 'Pause for 100ms
+                    If Main.bgwSendMessage.IsBusy Then
+                        Application.DoEvents()
+                        System.Threading.Thread.Sleep(200) 'Pause for 200ms
+                        If Main.bgwSendMessage.IsBusy Then
+                            Application.DoEvents()
+                            System.Threading.Thread.Sleep(400) 'Pause for 400ms
+                        End If
+                    End If
+                End If
+                If Main.bgwSendMessage.IsBusy Then
+                    Main.Message.AddWarning("Send Message backgroundworker is busy." & vbCrLf)
+                Else
+                    Dim SendMessageParams As New Main.clsSendMessageParams
+                    SendMessageParams.ProjectNetworkName = ProNetName
+                    SendMessageParams.ConnectionName = ConnName
+                    SendMessageParams.Message = XMsg
+                    Main.bgwSendMessage.RunWorkerAsync(SendMessageParams)
+                    'Main.Message.XAddText("Message sent to " & ConnName & " (ProNet: " & Main.ProNetName & ") " & ":" & vbCrLf, "XmlSentNotice") 'UPDATED 2Feb19
+                    'Main.Message.XAddText("Message sent to " & ConnName & " (ProNet: " & ProNetName & ") " & ":" & vbCrLf, "XmlSentNotice")
+                    If Main.ShowXMessages Then
+                        Main.Message.XAddText("Message sent to " & "[" & ProNetName & "]." & ConnName & ":" & vbCrLf, "XmlSentNotice")
+                        Main.Message.XAddXml(XMsg)
+                        Main.Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                    End If
+                End If
+            End If
+        End If
+    End Sub
+
+    Public Sub SendXMessageWait(ByVal ConnName As String, ByVal XMsg As String)
+        'Send the XMsg to the application with the connection name ConnName.
+        'Wait for the connection to be made.
+        If IsNothing(Main.client) Then
+            Main.Message.Add("No client connection available!" & vbCrLf)
+        Else
+            Try
+                Application.DoEvents()
+
+                If Main.client.State = ServiceModel.CommunicationState.Faulted Then
+                    Main.Message.Add("client state is faulted. Message not sent!" & vbCrLf)
+                Else
+                    Dim StartTime As Date = Now
+                    Dim Duration As TimeSpan
+                    'Wait up to 16 seconds for the connection ConnName to be established
+                    'While Main.client.ConnectionAvailable(Main.ProNetName, ConnName) '(When the specified connection is no longer available, the connection has been made and can be used.) - Consider changing this to ConnectionExists!
+                    While Main.client.ConnectionExists(Main.ProNetName, ConnName) = False 'Wait until the required connection is made.
+                        System.Threading.Thread.Sleep(1000) 'Pause for 1000ms
+                        Duration = Now - StartTime
+                        If Duration.Seconds > 16 Then Exit While
+                    End While
+
+                    'If Main.client.ConnectionAvailable(Main.ProNetName, ConnName) Then
+                    If Main.client.ConnectionExists(Main.ProNetName, ConnName) = False Then
+                        Main.Message.AddWarning("Connection not available: " & ConnName & " in application network: " & Main.ProNetName & vbCrLf)
+                    Else
+                        'Main.client.SendMessageAsync(Main.ProNetName, ConnName, XMsg)
+                        If Main.bgwSendMessage.IsBusy Then
+                            Application.DoEvents()
+                            System.Threading.Thread.Sleep(100) 'Pause for 100ms
+                            If Main.bgwSendMessage.IsBusy Then
+                                Application.DoEvents()
+                                System.Threading.Thread.Sleep(200) 'Pause for 200ms
+                                If Main.bgwSendMessage.IsBusy Then
+                                    Application.DoEvents()
+                                    System.Threading.Thread.Sleep(400) 'Pause for 400ms
+                                End If
+                            End If
+                        End If
+                        If Main.bgwSendMessage.IsBusy Then
+                            Main.Message.AddWarning("Send Message backgroundworker is busy." & vbCrLf)
+                        Else
+                            Dim SendMessageParams As New Main.clsSendMessageParams
+                            SendMessageParams.ProjectNetworkName = Main.ProNetName
+                            SendMessageParams.ConnectionName = ConnName
+                            SendMessageParams.Message = XMsg
+                            Main.bgwSendMessage.RunWorkerAsync(SendMessageParams)
+                            'Main.Message.XAddText("Message sent to " & ConnName & " (ProNet: " & Main.ProNetName & ") " & ":" & vbCrLf, "XmlSentNotice")
+                            If Main.ShowXMessages Then
+                                Main.Message.XAddText("Message sent to " & "[" & Main.ProNetName & "]." & ConnName & ":" & vbCrLf, "XmlSentNotice")
+                                Main.Message.XAddXml(XMsg)
+                                Main.Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                            End If
+                        End If
+                    End If
+                End If
+            Catch ex As Exception
+                Main.Message.AddWarning(ex.Message & vbCrLf)
+            End Try
+        End If
+    End Sub
+
+    Public Sub SendXMessageExtWait(ByVal ProNetName As String, ByVal ConnName As String, ByVal XMsg As String)
+        'Send the XMsg to the application with the connection name ConnName and Project Network Name ProNetName.
+        'Wait for the connection to be made.
+        'This version can send the XMessage to a connection external to the current Project Network.
+        If IsNothing(Main.client) Then
+            Main.Message.Add("No client connection available!" & vbCrLf)
+        Else
+            If Main.client.State = ServiceModel.CommunicationState.Faulted Then
+                Main.Message.Add("client state is faulted. Message not sent!" & vbCrLf)
+            Else
+                Dim StartTime As Date = Now
+                Dim Duration As TimeSpan
+                'Wait up to 16 seconds for the connection ConnName to be established
+                'While Main.client.ConnectionAvailable(Main.ProNetName, ConnName)
+                'While Main.client.ConnectionAvailable(ProNetName, ConnName)
+                While Main.client.ConnectionExists(ProNetName, ConnName) = False
+                    System.Threading.Thread.Sleep(1000) 'Pause for 1000ms
+                    Duration = Now - StartTime
+                    If Duration.Seconds > 16 Then Exit While
+                End While
+
+                'If Main.client.ConnectionAvailable(Main.ProNetName, ConnName) Then
+                'If Main.client.ConnectionAvailable(ProNetName, ConnName) Then
+                If Main.client.ConnectionExists(ProNetName, ConnName) = False Then
+                    'Main.Message.AddWarning("Connection not available: " & ConnName & " in application network: " & Main.ProNetName & vbCrLf)
+                    Main.Message.AddWarning("Connection not available: " & ConnName & " in application network: " & ProNetName & vbCrLf)
+                Else
+                    'Main.client.SendMessageAsync(ProNetName, ConnName, XMsg)
+                    If Main.bgwSendMessage.IsBusy Then
+                        Application.DoEvents()
+                        System.Threading.Thread.Sleep(100) 'Pause for 100ms
+                        If Main.bgwSendMessage.IsBusy Then
+                            Application.DoEvents()
+                            System.Threading.Thread.Sleep(200) 'Pause for 200ms
+                            If Main.bgwSendMessage.IsBusy Then
+                                Application.DoEvents()
+                                System.Threading.Thread.Sleep(400) 'Pause for 400ms
+                            End If
+                        End If
+                    End If
+                    If Main.bgwSendMessage.IsBusy Then
+                        Main.Message.AddWarning("Send Message backgroundworker is busy." & vbCrLf)
+                    Else
+                        Dim SendMessageParams As New Main.clsSendMessageParams
+                        SendMessageParams.ProjectNetworkName = ProNetName
+                        SendMessageParams.ConnectionName = ConnName
+                        SendMessageParams.Message = XMsg
+                        Main.bgwSendMessage.RunWorkerAsync(SendMessageParams)
+                        'Main.Message.XAddText("Message sent to " & ConnName & " (ProNet: " & ProNetName & ") " & ":" & vbCrLf, "XmlSentNotice")
+                        If Main.ShowXMessages Then
+                            Main.Message.XAddText("Message sent to " & "[" & ProNetName & "]." & ConnName & ":" & vbCrLf, "XmlSentNotice")
+                            Main.Message.XAddXml(XMsg)
+                            Main.Message.XAddText(vbCrLf, "Normal") 'Add extra line
+                        End If
+                    End If
+                End If
+            End If
+        End If
     End Sub
 
     Public Sub AddText(ByVal Msg As String, ByVal TextType As String)
@@ -536,10 +809,31 @@ Public Class frmWebPage
         If FileName = "" Then
             Main.Message.AddWarning("No page selected." & vbCrLf)
         Else
-            Dim FormNo As Integer = Main.OpenNewHtmlDisplayPage()
-            Main.HtmlDisplayFormList(FormNo).FileName = FileName
-            Main.HtmlDisplayFormList(FormNo).OpenDocument
+            Dim FileFound As Boolean = False
+            If Main.HtmlDisplayFormList.Count = 0 Then
+
+            Else
+                Dim I As Integer
+                For I = 0 To Main.HtmlDisplayFormList.Count - 1
+                    If Main.HtmlDisplayFormList(I) Is Nothing Then
+
+                    Else
+                        If Main.HtmlDisplayFormList(I).FileName = FileName Then
+                            FileFound = True
+                            Main.HtmlDisplayFormList(I).BringToFront
+                        End If
+                    End If
+                Next
+            End If
+
+            If FileFound = False Then
+                Dim FormNo As Integer = Main.OpenNewHtmlDisplayPage()
+                Main.HtmlDisplayFormList(FormNo).FileName = FileName
+                Main.HtmlDisplayFormList(FormNo).OpenDocument
+            End If
+
         End If
+
     End Sub
 
     Public Sub ParentProjectName(ByVal FormName As String, ByVal ItemName As String)
@@ -554,18 +848,380 @@ Public Class frmWebPage
 
     Public Sub ParentProjectParameterValue(ByVal FormName As String, ByVal ItemName As String, ByVal ParameterName As String)
         'Return the specified Parent Project parameter value:
-        RestoreSetting(FormName, ItemName, Main.Project.ParentParameter(ParameterName).Value)
+        'RestoreSetting(FormName, ItemName, Main.Project.ParentParameter(ParameterName).Value)
+        RestoreSetting(FormName, ItemName, Main.Project.GetParentParameter(ParameterName))
     End Sub
 
     Public Sub ProjectParameterValue(ByVal FormName As String, ByVal ItemName As String, ByVal ParameterName As String)
         'Return the specified Project parameter value:
-        RestoreSetting(FormName, ItemName, Main.Project.Parameter(ParameterName).Value)
+        'RestoreSetting(FormName, ItemName, Main.Project.Parameter(ParameterName).Value)
+        RestoreSetting(FormName, ItemName, Main.Project.GetParameter(ParameterName))
     End Sub
 
-    Public Sub ApplicationNetworkName(ByVal FormName As String, ByVal ItemName As String)
-        'Return the name of the Application Network:
-        RestoreSetting(FormName, ItemName, Main.Project.Parameter("AppNetName").Value)
+    Public Function ProjectParameterValue(ByVal ParameterName As String) As String
+        'Return the specified Project parameter value:
+        'RestoreSetting(FormName, ItemName, Main.Project.Parameter(ParameterName).Value)
+        Return Main.Project.Parameter(ParameterName).Value
+    End Function
+
+    Public Function GetProjectParameterValue(ByVal ParameterName As String) As String
+        'Return the specified Project parameter value:
+        'RestoreSetting(FormName, ItemName, Main.Project.Parameter(ParameterName).Value)
+        Return Main.Project.Parameter(ParameterName).Value
+    End Function
+
+    'Public Sub ApplicationNetworkName(ByVal FormName As String, ByVal ItemName As String)
+    '    'Return the name of the Application Network:
+    '    'RestoreSetting(FormName, ItemName, Main.Project.Parameter("AppNetName").Value)
+    '    RestoreSetting(FormName, ItemName, Main.Project.GetParameter("AppNetName"))
+    'End Sub
+
+    Public Sub ProjectNetworkName(ByVal FormName As String, ByVal ItemName As String)
+        'Return the name of the Project Network:
+        'RestoreSetting(FormName, ItemName, Main.Project.Parameter("AppNetName").Value)
+        RestoreSetting(FormName, ItemName, Main.Project.GetParameter("ProNetName"))
     End Sub
+
+
+
+    Public Sub CalcValsTable(ByVal TableName As String, ByVal FormName As String, ByVal ItemName As String)
+        'Search for TableName in the Calculated Values database. 
+        'If Found return TableName to FormName/ItemName.
+        'If not found return "" to FormName/ItemName.
+
+        'If Main.TableExists(Main.Project.Parameter("CalculationDatabasePath").Value, TableName) Then
+        If Main.TableExists(Main.Project.GetParameter("CalculationsDatabasePath"), TableName) Then
+            RestoreSetting(FormName, ItemName, TableName)
+        Else
+            RestoreSetting(FormName, ItemName, "")
+        End If
+    End Sub
+
+    Public Sub SharePriceTable(ByVal TableName As String, ByVal FormName As String, ByVal ItemName As String)
+        'Search for TableName in the Share Price database. 
+        'If Found return TableName to FormName/ItemName.
+        'If not found return "" to FormName/ItemName.
+
+        'If Main.TableExists(Main.Project.Parameter("CalculationDatabasePath").Value, TableName) Then
+        If Main.TableExists(Main.Project.GetParameter("SharePriceDatabasePath"), TableName) Then
+            RestoreSetting(FormName, ItemName, TableName)
+        Else
+            RestoreSetting(FormName, ItemName, "")
+        End If
+    End Sub
+
+    Public Sub Speak(ByVal Sentence As String)
+        'Speak the sentence through the computer speaker:
+
+        Dim mySynth As New System.Speech.Synthesis.SpeechSynthesizer
+
+        mySynth.SetOutputToDefaultAudioDevice()
+
+        'mySynth.SelectVoiceByHints(Speech.Synthesis.VoiceGender.Female, Speech.Synthesis.VoiceAge.Teen)
+        'mySynth.SelectVoiceByHints(Speech.Synthesis.VoiceGender.Male, Speech.Synthesis.VoiceAge.Teen, 0, System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))
+
+        'mySynth.SelectVoiceByHints(Speech.Synthesis.VoiceGender.Male)
+        'mySynth.Rate = 1
+
+        mySynth.Speak(Sentence)
+
+    End Sub
+
+    'Public Sub CalculateDailyStatistics(ByVal TableName As String, ByVal DateValue As Date)
+    Public Sub CalculateDailyStatistics(ByVal TableName As String, ByVal DateString As String)
+        'Calculate the Daily share trading Statistics for the date in DateValue.
+        'The results are stored in the Calculation database in the table named TableName.
+        Dim DateValue As Date
+
+        DateValue = CDate(DateString)
+
+        Main.CalculateDailyStatistics(TableName, DateValue)
+    End Sub
+
+    Public Sub DailyStatsBetweenDates(ByVal TableName As String, ByVal FromDateString As String, ByVal ToDateString As String)
+        'Calculate the Daily share trading Statistics between the dates in FromDateValue and ToDateValue.
+        'The results are stored in the Calculation database in the table named TableName.
+
+        Dim FromDateValue As Date = CDate(FromDateString)
+        Dim ToDateValue As Date = CDate(ToDateString)
+
+        Main.DailyStatsBetweenDates(TableName, FromDateValue, ToDateValue)
+
+    End Sub
+
+    Public Sub CompanyDailyStatsBetweenDates(ByVal TableName As String, ByVal AsxCode As String, ByVal FromDateString As String, ByVal ToDateString As String)
+        'Calculate the Daily share trading Statistics between the dates in FromDateString and ToDateString for the single company with the code AsxCode.
+        'The results are stored in the Share Price database in the table named TableName.
+
+        'Dim FromDateValue As Date = CDate(FromDateString)
+        'Dim ToDateValue As Date = CDate(ToDateString)
+
+        'Main.CompanyDailyStatsBetweenDates(TableName, AsxCode, FromDateValue, ToDateValue)
+        Main.CompanyDailyStatsBetweenDates(TableName, AsxCode, FromDateString, ToDateString)
+
+    End Sub
+
+    Public Sub CalcSharePriceDistAllDays(ByVal TableName As String, ByVal AsxCode As String, ByVal FromDateString As String, ByVal ToDateString As String, ByVal WindowLen As Integer)
+        'Calculate the closing share price distributions between the dates in FromDateString and ToDateString for the single company with the code AsxCode.
+        'The mean and standard deviation of the closing prices are calculated over a woindow length of side WindowLen days.
+        'The trade volume is also analysed.
+        'The WindowLength includes all days, trade days and non-trade days. (Non-trade days include weekends, holidays and trading halt days.)
+
+        Main.CalcSharePriceDistAllDays(TableName, AsxCode, FromDateString, ToDateString, WindowLen)
+    End Sub
+
+    Public Sub CalcSharePriceDistTradeDays(ByVal TableName As String, ByVal AsxCode As String, ByVal FromDateString As String, ByVal ToDateString As String, ByVal WindowLen As Integer)
+        'Calculate the closing share price distributions between the dates in FromDateString and ToDateString for the single company with the code AsxCode.
+        'The mean and standard deviation of the closing prices are calculated over a woindow length of side WindowLen days.
+        'The trade volume is also analysed.
+        'The WindowLength includes only trade days. Non-trade days are excluded from the statistics. (Non-trade days include weekends, holidays and trading halt days.)
+
+        'FOR DEBUGGING:
+        Main.Message.Add("Running CalcSharePriceDistTradeDays " & vbCrLf)
+        Main.Message.Add("TableName = " & TableName & vbCrLf)
+        Main.Message.Add("AsxCode = " & AsxCode & vbCrLf)
+        Main.Message.Add("FromDateString = " & FromDateString & vbCrLf)
+        Main.Message.Add("ToDateString = " & ToDateString & vbCrLf)
+        Main.Message.Add("WindowLen = " & WindowLen & vbCrLf)
+
+        Main.CalcSharePriceDistTradeDays(TableName, AsxCode, FromDateString, ToDateString, WindowLen)
+    End Sub
+
+    Public Sub AllCompanyDailyStatsBetweenDates(ByVal TableName As String, ByVal FromDateString As String, ByVal ToDateString As String)
+        'Calculate the Daily share trading Statistics between the dates in FromDateValue and ToDateValue for all companies traded.
+        'The results are stored in the Share Price database in the table named TableName.
+
+        Dim FromDateValue As Date = CDate(FromDateString)
+        Dim ToDateValue As Date = CDate(ToDateString)
+
+        Main.AllCompanyDailyStatsBetweenDates(TableName, FromDateValue, ToDateValue)
+
+    End Sub
+
+    Public Sub DailyStatsDayNos(ByVal TableName As String)
+        'Caluclate the Rel_Day_No and Trade_Day_No values in the Daily share trading Statistics table.
+
+        Main.DailyStatsDayNos(TableName)
+
+    End Sub
+
+    'Public Sub GetDividendPaymentInfo(ByVal AsxCode As String)
+    '    'Get dividend payment information for the company with code AsxCode.
+    '    'The dividend info is stored in the table Dividend_Payment_Info in the Calculations database.
+
+    '    Main.GetDividendPaymentInfo(AsxCode)
+
+    'End Sub
+
+    Public Sub DividendReboundAnalysis(ByVal AsxCode As String, ByVal MinBuyDelay As Integer, ByVal MaxBuyDelay As Integer, ByVal MinSellDelay As Integer, ByVal MaxSellDelay As Integer, ByVal BuyBrokPct As Single, ByVal SellBrokPct As Single)
+        'Analyse the dividend rebound effect.
+        Main.DividendReboundAnalysis(AsxCode, MinBuyDelay, MaxBuyDelay, MinSellDelay, MaxSellDelay, BuyBrokPct, SellBrokPct)
+    End Sub
+
+    Public Sub CalcDividendPaymentInfo(ByVal AsxCode As String)
+        'Genrate the dividend payment records for the AsxCode.
+        Main.CalcDividendPaymentInfo(AsxCode)
+    End Sub
+
+
+    Public Sub OpenProjectAtRelativePath(ByVal RelativePath As String, ByVal ConnectionName As String)
+        'Open the Project at the specified Relative Path using the specified Connection Name.
+
+        Dim ProjectPath As String
+        If RelativePath.StartsWith("\") Then
+            ProjectPath = Main.Project.Path & RelativePath
+            Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+        Else
+            ProjectPath = Main.Project.Path & "\" & RelativePath
+            Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+        End If
+    End Sub
+
+    Public Sub CheckOpenProjectAtRelativePath(ByVal RelativePath As String, ByVal ConnectionName As String)
+        'Check if the project at the specified Relative Path is open.
+        'Open it if it is not already open.
+        'Open the Project at the specified Relative Path using the specified Connection Name.
+        Try
+            Application.DoEvents()
+            Dim ProjectPath As String
+            If RelativePath.StartsWith("\") Then
+                ProjectPath = Main.Project.Path & RelativePath
+                If Main.client.ProjectOpen(ProjectPath) Then
+                    'Project is already open.
+                Else
+                    Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+                End If
+            Else
+                ProjectPath = Main.Project.Path & "\" & RelativePath
+                If Main.client.ProjectOpen(ProjectPath) Then 'An exception of type 'System.InvalidOperationException' occurred in mscorlib.dll but was not handled in user code
+                    'Additional Information: This operation would deadlock because the reply cannot be received until the current Message completes processing. If you want To allow out-Of-order message processing, specify ConcurrencyMode of Reentrant Or Multiple on CallbackBehaviorAttribute.
+                    'Project is already open.
+                Else
+                    Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+                End If
+            End If
+        Catch ex As Exception
+            Main.Message.AddWarning(ex.Message & vbCrLf)
+        End Try
+    End Sub
+
+    'Public Sub OpenProjectAtAppNetPath(ByVal RelativePath As String, ByVal ConnectionName As String)
+    '    'Open the Project at the specified Path (relative to the AppNet Path) using the specified Connection Name.
+
+    '    Dim ProjectPath As String
+    '    If RelativePath.StartsWith("\") Then
+    '        If Main.Project.ParameterExists("AppNetPath") Then
+    '            ProjectPath = Main.Project.GetParameter("AppNetPath") & RelativePath
+    '            Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+    '        Else
+    '            Main.Message.AddWarning("The Application Network Path is not known." & vbCrLf)
+    '        End If
+    '    Else
+    '        If Main.Project.ParameterExists("AppNetPath") Then
+    '            ProjectPath = Main.Project.GetParameter("AppNetPath") & "\" & RelativePath
+    '            Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+    '        Else
+    '            Main.Message.AddWarning("The Application Network Path is not known." & vbCrLf)
+    '        End If
+    '    End If
+    'End Sub
+
+    Public Sub OpenProjectAtProNetPath(ByVal RelativePath As String, ByVal ConnectionName As String)
+        'Open the Project at the specified Path (relative to the ProNet Path) using the specified Connection Name.
+
+        Dim ProjectPath As String
+        If RelativePath.StartsWith("\") Then
+            If Main.Project.ParameterExists("ProNetPath") Then
+                ProjectPath = Main.Project.GetParameter("ProNetPath") & RelativePath
+                Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+            Else
+                Main.Message.AddWarning("The Project Network Path is not known." & vbCrLf)
+            End If
+        Else
+            If Main.Project.ParameterExists("ProNetPath") Then
+                ProjectPath = Main.Project.GetParameter("ProNetPath") & "\" & RelativePath
+                Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+            Else
+                Main.Message.AddWarning("The Project Network Path is not known." & vbCrLf)
+            End If
+        End If
+    End Sub
+
+    'Public Sub CheckOpenProjectAtAppNetPath(ByVal RelativePath As String, ByVal ConnectionName As String)
+    '    'Check if the project at the specified Path (relative to the AppNet Path) is open.
+    '    'Open it if it is not already open.
+    '    'Open the Project at the specified Path using the specified Connection Name.
+
+    '    Dim ProjectPath As String
+    '    If RelativePath.StartsWith("\") Then
+    '        If Main.Project.ParameterExists("AppNetPath") Then
+    '            ProjectPath = Main.Project.GetParameter("AppNetPath") & RelativePath
+    '            'Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+    '            If Main.client.ProjectOpen(ProjectPath) Then
+    '                'Project is already open.
+    '            Else
+    '                Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+    '            End If
+    '        Else
+    '            Main.Message.AddWarning("The Application Network Path is not known." & vbCrLf)
+    '        End If
+    '    Else
+    '        If Main.Project.ParameterExists("AppNetPath") Then
+    '            ProjectPath = Main.Project.GetParameter("AppNetPath") & "\" & RelativePath
+    '            'Main.client.StartProjectAtPath(ProjectPath, ConnectionName)CheckOpen
+    '            If Main.client.ProjectOpen(ProjectPath) Then
+    '                'Project is already open.
+    '            Else
+    '                Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+    '            End If
+    '        Else
+    '            Main.Message.AddWarning("The Application Network Path is not known." & vbCrLf)
+    '        End If
+    '    End If
+    'End Sub
+
+    Public Sub CheckOpenProjectAtProNetPath(ByVal RelativePath As String, ByVal ConnectionName As String)
+        'Check if the project at the specified Path (relative to the ProNet Path) is open.
+        'Open it if it is not already open.
+        'Open the Project at the specified Path using the specified Connection Name.
+
+        Dim ProjectPath As String
+        If RelativePath.StartsWith("\") Then
+            If Main.Project.ParameterExists("ProNetPath") Then
+                ProjectPath = Main.Project.GetParameter("ProNetPath") & RelativePath
+                If Main.client.ProjectOpen(ProjectPath) Then
+                    'Project is already open.
+                Else
+                    Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+                End If
+            Else
+                Main.Message.AddWarning("The Project Network Path is not known." & vbCrLf)
+            End If
+        Else
+            If Main.Project.ParameterExists("ProNetPath") Then
+                ProjectPath = Main.Project.GetParameter("ProNetPath") & "\" & RelativePath
+                If Main.client.ProjectOpen(ProjectPath) Then
+                    'Project is already open.
+                Else
+                    Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+                End If
+            Else
+                Main.Message.AddWarning("The Project Network Path is not known." & vbCrLf)
+            End If
+        End If
+    End Sub
+
+    Public Function GetSharePriceValue(ByVal AsxCode As String, ByVal DateString As String, ByVal PriceType As String) As Single
+        'Return a share price value at the specified date.
+        Return Main.GetSharePriceValue(AsxCode, DateString, PriceType)
+
+    End Function
+
+    'Public Sub ShowFirstSharePriceValue(ByVal AsxCode As String, ByVal DateString As String, ByVal NDays As Integer, ByRef DateValue As Date, ByVal DateFormName As String, ByVal DateItemName As String, ByVal PriceType As String, ByRef PriceValue As Single, ByVal PriceFormName As String, ByVal PriceItemName As String, ByRef Status As String, ByVal StatusFormName As String, ByVal StatusItemName As String)
+    Public Sub ShowFirstSharePriceValue(ByVal AsxCode As String, ByVal DateString As String, ByVal NDays As Integer, ByVal PriceType As String, ByVal PriceFormName As String, ByVal PriceItemName As String, ByVal DateFormName As String, ByVal DateItemName As String, ByVal StatusFormName As String, ByVal StatusItemName As String)
+        'Get the first available Share price in the time window defined by the DateString and NDays.
+        'Return the price date and status in the PriceValue, DateValue and Status variables.
+        'The price, date and status values are then sent to the specified web page locations (PriceFormName, PriceItemName etc).
+
+        Dim PriceValue As Single 'Stores the value of the first share price found in the date window
+        Dim DateValue As Date    'Stores the date of the first share price found in the date window
+        Dim Status As String     'Stores the status of the search for the first share price
+
+        Main.GetFirstSharePriceValue(AsxCode, DateString, NDays, DateValue, PriceType, PriceValue, Status)
+
+        If Status = "OK" Then
+            RestoreSetting(PriceFormName, PriceItemName, PriceValue)                         'Show the first share price found on the web page
+            RestoreSetting(DateFormName, DateItemName, Format(DateValue, "dd MMMM yyyy"))    'Show the date of the first share price found on the web page.
+            RestoreSetting(StatusFormName, StatusItemName, Status)                           'Show the Status string.
+        Else 'Error finding the first share price value!
+            RestoreSetting(PriceFormName, PriceItemName, "")       'Show a blank first share price found on the web page
+            RestoreSetting(DateFormName, DateItemName, "")         'Show a blank date of the first share price found on the web page.
+            RestoreSetting(StatusFormName, StatusItemName, Status) 'Show the Status string.
+        End If
+
+    End Sub
+
+
+    'Public Sub CloseAppAtConnection(ByVal AppNetName As String, ByVal ConnectionName As String)
+    '    'Close the application at the specified connection.
+    '    Main.CloseAppAtConnection(AppNetName, ConnectionName)
+    'End Sub
+
+    'Public Sub CloseAppAtConnection(ByVal ProNetName As String, ByVal ConnectionName As String)
+    Public Sub CloseProjectAtConnection(ByVal ProNetName As String, ByVal ConnectionName As String)
+        'Close the application at the specified connection.
+        'Main.CloseAppAtConnection(ProNetName, ConnectionName)
+        Main.CloseProjectAtConnection(ProNetName, ConnectionName)
+    End Sub
+
+
+    'Public Sub SetEndInstructionInfo(ByVal EndInstructionInfo As String)
+    '    Main.EndInstructionInfo = EndInstructionInfo
+    'End Sub
+
+    'Public Sub SetEndInstructionLocn(ByVal EndInstructionLocn As String)
+    '    Main.EndInstructionLocn = EndInstructionLocn
+    'End Sub
 
 #End Region 'Methods Called by JavaScript -----------------------------------------------------------------------------------------------------------------------------------------------------
 

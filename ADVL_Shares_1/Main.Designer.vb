@@ -521,6 +521,10 @@ Partial Class Main
         Me.TextBox1 = New System.Windows.Forms.TextBox()
         Me.Label14 = New System.Windows.Forms.Label()
         Me.TabPage1 = New System.Windows.Forms.TabPage()
+        Me.btnOpenParentDir = New System.Windows.Forms.Button()
+        Me.btnOpenArchive = New System.Windows.Forms.Button()
+        Me.btnCreateArchive = New System.Windows.Forms.Button()
+        Me.btnShowProjectInfo = New System.Windows.Forms.Button()
         Me.btnShowVoices = New System.Windows.Forms.Button()
         Me.chkConnect = New System.Windows.Forms.CheckBox()
         Me.btnOpenProject = New System.Windows.Forms.Button()
@@ -539,9 +543,7 @@ Partial Class Main
         Me.Label121 = New System.Windows.Forms.Label()
         Me.txtSystemLocationType = New System.Windows.Forms.TextBox()
         Me.txtSystemLocationPath = New System.Windows.Forms.TextBox()
-        Me.Label116 = New System.Windows.Forms.Label()
         Me.txtCurrentDuration = New System.Windows.Forms.TextBox()
-        Me.Label117 = New System.Windows.Forms.Label()
         Me.Label118 = New System.Windows.Forms.Label()
         Me.txtTotalDuration = New System.Windows.Forms.TextBox()
         Me.Label119 = New System.Windows.Forms.Label()
@@ -781,7 +783,7 @@ Partial Class Main
         Me.TabControl3.Location = New System.Drawing.Point(3, 3)
         Me.TabControl3.Name = "TabControl3"
         Me.TabControl3.SelectedIndex = 0
-        Me.TabControl3.Size = New System.Drawing.Size(801, 464)
+        Me.TabControl3.Size = New System.Drawing.Size(819, 485)
         Me.TabControl3.TabIndex = 62
         '
         'TabPage9
@@ -798,7 +800,7 @@ Partial Class Main
         Me.TabPage9.Location = New System.Drawing.Point(4, 22)
         Me.TabPage9.Name = "TabPage9"
         Me.TabPage9.Padding = New System.Windows.Forms.Padding(3)
-        Me.TabPage9.Size = New System.Drawing.Size(793, 438)
+        Me.TabPage9.Size = New System.Drawing.Size(811, 459)
         Me.TabPage9.TabIndex = 0
         Me.TabPage9.Text = "Share Prices"
         Me.TabPage9.UseVisualStyleBackColor = True
@@ -825,7 +827,7 @@ Partial Class Main
         'btnFindSharePricesDataList
         '
         Me.btnFindSharePricesDataList.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnFindSharePricesDataList.Location = New System.Drawing.Point(745, 6)
+        Me.btnFindSharePricesDataList.Location = New System.Drawing.Point(763, 6)
         Me.btnFindSharePricesDataList.Name = "btnFindSharePricesDataList"
         Me.btnFindSharePricesDataList.Size = New System.Drawing.Size(42, 22)
         Me.btnFindSharePricesDataList.TabIndex = 64
@@ -839,7 +841,7 @@ Partial Class Main
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.txtSharePricesDataList.Location = New System.Drawing.Point(310, 7)
         Me.txtSharePricesDataList.Name = "txtSharePricesDataList"
-        Me.txtSharePricesDataList.Size = New System.Drawing.Size(429, 20)
+        Me.txtSharePricesDataList.Size = New System.Drawing.Size(447, 20)
         Me.txtSharePricesDataList.TabIndex = 66
         '
         'lstSharePrices
@@ -851,7 +853,7 @@ Partial Class Main
         Me.lstSharePrices.Location = New System.Drawing.Point(6, 34)
         Me.lstSharePrices.Name = "lstSharePrices"
         Me.lstSharePrices.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended
-        Me.lstSharePrices.Size = New System.Drawing.Size(781, 394)
+        Me.lstSharePrices.Size = New System.Drawing.Size(799, 407)
         Me.lstSharePrices.TabIndex = 54
         '
         'btnViewSPUp
@@ -904,7 +906,7 @@ Partial Class Main
         Me.TabPage10.Location = New System.Drawing.Point(4, 22)
         Me.TabPage10.Name = "TabPage10"
         Me.TabPage10.Padding = New System.Windows.Forms.Padding(3)
-        Me.TabPage10.Size = New System.Drawing.Size(793, 438)
+        Me.TabPage10.Size = New System.Drawing.Size(811, 459)
         Me.TabPage10.TabIndex = 1
         Me.TabPage10.Text = "Financials"
         Me.TabPage10.UseVisualStyleBackColor = True
@@ -931,7 +933,7 @@ Partial Class Main
         'btnFindFinDataList
         '
         Me.btnFindFinDataList.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnFindFinDataList.Location = New System.Drawing.Point(745, 6)
+        Me.btnFindFinDataList.Location = New System.Drawing.Point(763, 6)
         Me.btnFindFinDataList.Name = "btnFindFinDataList"
         Me.btnFindFinDataList.Size = New System.Drawing.Size(42, 22)
         Me.btnFindFinDataList.TabIndex = 52
@@ -945,7 +947,7 @@ Partial Class Main
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.txtFinancialsDataList.Location = New System.Drawing.Point(310, 7)
         Me.txtFinancialsDataList.Name = "txtFinancialsDataList"
-        Me.txtFinancialsDataList.Size = New System.Drawing.Size(429, 20)
+        Me.txtFinancialsDataList.Size = New System.Drawing.Size(447, 20)
         Me.txtFinancialsDataList.TabIndex = 63
         '
         'lstFinancials
@@ -957,7 +959,7 @@ Partial Class Main
         Me.lstFinancials.Location = New System.Drawing.Point(6, 34)
         Me.lstFinancials.Name = "lstFinancials"
         Me.lstFinancials.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended
-        Me.lstFinancials.Size = New System.Drawing.Size(781, 394)
+        Me.lstFinancials.Size = New System.Drawing.Size(799, 407)
         Me.lstFinancials.TabIndex = 56
         '
         'btnDeleteViewFin
@@ -1009,7 +1011,7 @@ Partial Class Main
         Me.TabPage11.Controls.Add(Me.btnInsertViewCalcsAfter)
         Me.TabPage11.Location = New System.Drawing.Point(4, 22)
         Me.TabPage11.Name = "TabPage11"
-        Me.TabPage11.Size = New System.Drawing.Size(793, 438)
+        Me.TabPage11.Size = New System.Drawing.Size(811, 459)
         Me.TabPage11.TabIndex = 2
         Me.TabPage11.Text = "Calculations"
         Me.TabPage11.UseVisualStyleBackColor = True
@@ -1036,7 +1038,7 @@ Partial Class Main
         'btnFindCalcsDataList
         '
         Me.btnFindCalcsDataList.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnFindCalcsDataList.Location = New System.Drawing.Point(745, 6)
+        Me.btnFindCalcsDataList.Location = New System.Drawing.Point(763, 6)
         Me.btnFindCalcsDataList.Name = "btnFindCalcsDataList"
         Me.btnFindCalcsDataList.Size = New System.Drawing.Size(42, 22)
         Me.btnFindCalcsDataList.TabIndex = 67
@@ -1050,7 +1052,7 @@ Partial Class Main
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.txtCalcsDataList.Location = New System.Drawing.Point(310, 7)
         Me.txtCalcsDataList.Name = "txtCalcsDataList"
-        Me.txtCalcsDataList.Size = New System.Drawing.Size(429, 20)
+        Me.txtCalcsDataList.Size = New System.Drawing.Size(447, 20)
         Me.txtCalcsDataList.TabIndex = 73
         '
         'lstCalculations
@@ -1062,7 +1064,7 @@ Partial Class Main
         Me.lstCalculations.Location = New System.Drawing.Point(6, 34)
         Me.lstCalculations.Name = "lstCalculations"
         Me.lstCalculations.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended
-        Me.lstCalculations.Size = New System.Drawing.Size(781, 394)
+        Me.lstCalculations.Size = New System.Drawing.Size(799, 407)
         Me.lstCalculations.TabIndex = 69
         '
         'btnDeleteViewCalcs
@@ -1114,7 +1116,7 @@ Partial Class Main
         Me.TabPage12.Controls.Add(Me.btnInsertViewNewsAfter)
         Me.TabPage12.Location = New System.Drawing.Point(4, 22)
         Me.TabPage12.Name = "TabPage12"
-        Me.TabPage12.Size = New System.Drawing.Size(793, 438)
+        Me.TabPage12.Size = New System.Drawing.Size(811, 459)
         Me.TabPage12.TabIndex = 3
         Me.TabPage12.Text = "News"
         Me.TabPage12.UseVisualStyleBackColor = True
@@ -1141,7 +1143,7 @@ Partial Class Main
         'btnFindNewsDataList
         '
         Me.btnFindNewsDataList.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnFindNewsDataList.Location = New System.Drawing.Point(745, 6)
+        Me.btnFindNewsDataList.Location = New System.Drawing.Point(763, 6)
         Me.btnFindNewsDataList.Name = "btnFindNewsDataList"
         Me.btnFindNewsDataList.Size = New System.Drawing.Size(42, 22)
         Me.btnFindNewsDataList.TabIndex = 67
@@ -1155,7 +1157,7 @@ Partial Class Main
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.txtNewsDataList.Location = New System.Drawing.Point(310, 7)
         Me.txtNewsDataList.Name = "txtNewsDataList"
-        Me.txtNewsDataList.Size = New System.Drawing.Size(429, 20)
+        Me.txtNewsDataList.Size = New System.Drawing.Size(447, 20)
         Me.txtNewsDataList.TabIndex = 73
         '
         'ListBox2
@@ -1167,7 +1169,7 @@ Partial Class Main
         Me.ListBox2.Location = New System.Drawing.Point(6, 34)
         Me.ListBox2.Name = "ListBox2"
         Me.ListBox2.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended
-        Me.ListBox2.Size = New System.Drawing.Size(781, 394)
+        Me.ListBox2.Size = New System.Drawing.Size(799, 407)
         Me.ListBox2.TabIndex = 69
         '
         'btnDeleteViewNews
@@ -5855,6 +5857,10 @@ Partial Class Main
         '
         'TabPage1
         '
+        Me.TabPage1.Controls.Add(Me.btnOpenParentDir)
+        Me.TabPage1.Controls.Add(Me.btnOpenArchive)
+        Me.TabPage1.Controls.Add(Me.btnCreateArchive)
+        Me.TabPage1.Controls.Add(Me.btnShowProjectInfo)
         Me.TabPage1.Controls.Add(Me.btnShowVoices)
         Me.TabPage1.Controls.Add(Me.chkConnect)
         Me.TabPage1.Controls.Add(Me.btnOpenProject)
@@ -5873,9 +5879,7 @@ Partial Class Main
         Me.TabPage1.Controls.Add(Me.Label121)
         Me.TabPage1.Controls.Add(Me.txtSystemLocationType)
         Me.TabPage1.Controls.Add(Me.txtSystemLocationPath)
-        Me.TabPage1.Controls.Add(Me.Label116)
         Me.TabPage1.Controls.Add(Me.txtCurrentDuration)
-        Me.TabPage1.Controls.Add(Me.Label117)
         Me.TabPage1.Controls.Add(Me.Label118)
         Me.TabPage1.Controls.Add(Me.txtTotalDuration)
         Me.TabPage1.Controls.Add(Me.Label119)
@@ -5904,11 +5908,50 @@ Partial Class Main
         Me.TabPage1.Text = "Project Information"
         Me.TabPage1.UseVisualStyleBackColor = True
         '
+        'btnOpenParentDir
+        '
+        Me.btnOpenParentDir.Location = New System.Drawing.Point(125, 396)
+        Me.btnOpenParentDir.Name = "btnOpenParentDir"
+        Me.btnOpenParentDir.Size = New System.Drawing.Size(125, 22)
+        Me.btnOpenParentDir.TabIndex = 311
+        Me.btnOpenParentDir.Text = "Open Parent Directory"
+        Me.ToolTip1.SetToolTip(Me.btnOpenParentDir, "Open the Parent directory")
+        Me.btnOpenParentDir.UseVisualStyleBackColor = True
+        '
+        'btnOpenArchive
+        '
+        Me.btnOpenArchive.Location = New System.Drawing.Point(354, 396)
+        Me.btnOpenArchive.Name = "btnOpenArchive"
+        Me.btnOpenArchive.Size = New System.Drawing.Size(94, 22)
+        Me.btnOpenArchive.TabIndex = 310
+        Me.btnOpenArchive.Text = "Open Archive"
+        Me.ToolTip1.SetToolTip(Me.btnOpenArchive, "Open a project archive file")
+        Me.btnOpenArchive.UseVisualStyleBackColor = True
+        '
+        'btnCreateArchive
+        '
+        Me.btnCreateArchive.Location = New System.Drawing.Point(256, 396)
+        Me.btnCreateArchive.Name = "btnCreateArchive"
+        Me.btnCreateArchive.Size = New System.Drawing.Size(92, 22)
+        Me.btnCreateArchive.TabIndex = 309
+        Me.btnCreateArchive.Text = "Create Archive"
+        Me.ToolTip1.SetToolTip(Me.btnCreateArchive, "Create a project archive file")
+        Me.btnCreateArchive.UseVisualStyleBackColor = True
+        '
+        'btnShowProjectInfo
+        '
+        Me.btnShowProjectInfo.Location = New System.Drawing.Point(6, 396)
+        Me.btnShowProjectInfo.Name = "btnShowProjectInfo"
+        Me.btnShowProjectInfo.Size = New System.Drawing.Size(113, 22)
+        Me.btnShowProjectInfo.TabIndex = 308
+        Me.btnShowProjectInfo.Text = "Show Project Info"
+        Me.btnShowProjectInfo.UseVisualStyleBackColor = True
+        '
         'btnShowVoices
         '
-        Me.btnShowVoices.Location = New System.Drawing.Point(6, 396)
+        Me.btnShowVoices.Location = New System.Drawing.Point(471, 396)
         Me.btnShowVoices.Name = "btnShowVoices"
-        Me.btnShowVoices.Size = New System.Drawing.Size(150, 22)
+        Me.btnShowVoices.Size = New System.Drawing.Size(113, 22)
         Me.btnShowVoices.TabIndex = 306
         Me.btnShowVoices.Text = "Show list of voices"
         Me.btnShowVoices.UseVisualStyleBackColor = True
@@ -6069,30 +6112,12 @@ Partial Class Main
         Me.txtSystemLocationPath.Size = New System.Drawing.Size(663, 46)
         Me.txtSystemLocationPath.TabIndex = 84
         '
-        'Label116
-        '
-        Me.Label116.AutoSize = True
-        Me.Label116.Location = New System.Drawing.Point(562, 371)
-        Me.Label116.Name = "Label116"
-        Me.Label116.Size = New System.Drawing.Size(41, 13)
-        Me.Label116.TabIndex = 79
-        Me.Label116.Text = "d:h:m:s"
-        '
         'txtCurrentDuration
         '
         Me.txtCurrentDuration.Location = New System.Drawing.Point(471, 368)
         Me.txtCurrentDuration.Name = "txtCurrentDuration"
-        Me.txtCurrentDuration.Size = New System.Drawing.Size(85, 20)
+        Me.txtCurrentDuration.Size = New System.Drawing.Size(120, 20)
         Me.txtCurrentDuration.TabIndex = 78
-        '
-        'Label117
-        '
-        Me.Label117.AutoSize = True
-        Me.Label117.Location = New System.Drawing.Point(374, 371)
-        Me.Label117.Name = "Label117"
-        Me.Label117.Size = New System.Drawing.Size(41, 13)
-        Me.Label117.TabIndex = 77
-        Me.Label117.Text = "d:h:m:s"
         '
         'Label118
         '
@@ -6107,7 +6132,7 @@ Partial Class Main
         '
         Me.txtTotalDuration.Location = New System.Drawing.Point(283, 368)
         Me.txtTotalDuration.Name = "txtTotalDuration"
-        Me.txtTotalDuration.Size = New System.Drawing.Size(85, 20)
+        Me.txtTotalDuration.Size = New System.Drawing.Size(120, 20)
         Me.txtTotalDuration.TabIndex = 75
         '
         'Label119
@@ -6883,9 +6908,7 @@ Partial Class Main
     Friend WithEvents btnViewFinDwn As Button
     Friend WithEvents btnViewCalcsDwn As Button
     Friend WithEvents btnViewNewsDwn As Button
-    Friend WithEvents Label116 As Label
     Friend WithEvents txtCurrentDuration As TextBox
-    Friend WithEvents Label117 As Label
     Friend WithEvents Label118 As Label
     Friend WithEvents txtTotalDuration As TextBox
     Friend WithEvents Label119 As Label
@@ -7021,4 +7044,8 @@ Partial Class Main
     Friend WithEvents btnOpenSPChart As Button
     Friend WithEvents btnOpenPointChart As Button
     Friend WithEvents btnOpenLineChart As Button
+    Friend WithEvents btnOpenParentDir As Button
+    Friend WithEvents btnOpenArchive As Button
+    Friend WithEvents btnCreateArchive As Button
+    Friend WithEvents btnShowProjectInfo As Button
 End Class

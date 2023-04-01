@@ -1050,6 +1050,14 @@ Public Class frmWebPage
                     'Project is already open.
                 Else
                     Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+                    'Wait up to 16 seconds for the connection ConnName to be established 'THE PROJECT SHOULD NOT BE USED UNTIL THE CONNECTION IS COMPLETE
+                    Dim StartTime As Date = Now
+                    Dim Duration As TimeSpan
+                    While Main.client.ConnectionExists(Main.ProNetName, ConnectionName) = False
+                        System.Threading.Thread.Sleep(1000) 'Pause for 1000ms
+                        Duration = Now - StartTime
+                        If Duration.Seconds > 16 Then Exit While
+                    End While
                 End If
             Else
                 ProjectPath = Main.Project.Path & "\" & RelativePath
@@ -1058,6 +1066,15 @@ Public Class frmWebPage
                     'Project is already open.
                 Else
                     Main.client.StartProjectAtPath(ProjectPath, ConnectionName)
+                    'Wait up to 16 seconds for the connection ConnName to be established 'THE PROJECT SHOULD NOT BE USED UNTIL THE CONNECTION IS COMPLETE
+                    Dim StartTime As Date = Now
+                    Dim Duration As TimeSpan
+                    While Main.client.ConnectionExists(Main.ProNetName, ConnectionName) = False
+                        System.Threading.Thread.Sleep(1000) 'Pause for 1000ms
+                        Duration = Now - StartTime
+                        If Duration.Seconds > 16 Then Exit While
+                    End While
+
                 End If
             End If
         Catch ex As Exception

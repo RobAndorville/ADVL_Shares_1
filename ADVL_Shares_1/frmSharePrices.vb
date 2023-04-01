@@ -939,6 +939,14 @@
         End If
     End Sub
 
+    Private Sub txtDataName_TextChanged(sender As Object, e As EventArgs) Handles txtDataName.TextChanged
+
+    End Sub
+
+    Private Sub txtDataName_MouseLeave(sender As Object, e As EventArgs) Handles txtDataName.MouseLeave
+
+    End Sub
+
 #End Region 'Form Methods ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 End Class

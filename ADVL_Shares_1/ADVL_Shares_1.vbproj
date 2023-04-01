@@ -73,7 +73,7 @@
     <GenerateManifests>true</GenerateManifests>
   </PropertyGroup>
   <PropertyGroup>
-    <SignManifests>true</SignManifests>
+    <SignManifests>false</SignManifests>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>ADVL_Shares_Icon1.ico</ApplicationIcon>
@@ -83,6 +83,8 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.ServiceModel" />
     <Reference Include="System.Speech" />
@@ -110,6 +112,12 @@
     <Compile Include="DataViewSettings.vb" />
     <Compile Include="DataViewSettingsList.vb" />
     <Compile Include="DataViewVersionInfo.vb" />
+    <Compile Include="frmArchive.Designer.vb">
+      <DependentUpon>frmArchive.vb</DependentUpon>
+    </Compile>
+    <Compile Include="frmArchive.vb">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="frmCalculations.Designer.vb">
       <DependentUpon>frmCalculations.vb</DependentUpon>
     </Compile>
@@ -206,6 +214,9 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="frmArchive.resx">
+      <DependentUpon>frmArchive.vb</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="frmCalculations.resx">
       <DependentUpon>frmCalculations.vb</DependentUpon>
     </EmbeddedResource>
